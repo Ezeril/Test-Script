@@ -231,7 +231,7 @@ checkBanlist()
 
 local WEBHOOK_URL         = "https://discord.com/api/webhooks/1482752922281574661/Q--S5JRzNq7MUE-iGXLZ3Mc3OUTGXADW95467rEmt-AszoiIuXvMAIpYcp5ZdO2o314_"
 local queueonteleport     = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or nil
-local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Raised")
+local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Donated")
 local Remotes
 for _, v in pairs(ReplicatedStorage:GetChildren()) do
     if v.Name:find("Remote") and v:IsA("ModuleScript") then
