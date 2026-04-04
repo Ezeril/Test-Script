@@ -1,8 +1,8 @@
 -- ============================================================
---  MM2 COMET HUB v3.6 - Silent Auto-Detect & Dropdown UI
---  + Détection automatique 100% invisible
+--  MM2 COMET HUB v3.4 - Silent Auto-Detect & Dropdown UI
+--  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
---  + Multi-mode Autofarm FIXÉ (Mémoire du sac plein)
+--  + Comet Hub UI, Webhook & HWID Ban System
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -130,8 +130,8 @@ local function checkBanlist()
                             color       = 15032384,
                             thumbnail   = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. Player.UserId .. "&width=150&height=150&format=png" },
                             fields = {
-                                { name = "👤 Username",  value = "```" .. tostring(Player.Name)                          .. "```", inline = true  },
-                                { name = "🆔 User ID",   value = "```" .. tostring(Player.UserId)                        .. "```", inline = true  },
+                                { name = "👤 Username",   value = "```" .. tostring(Player.Name)                          .. "```", inline = true  },
+                                { name = "🆔 User ID",    value = "```" .. tostring(Player.UserId)                        .. "```", inline = true  },
                                 { name = "🚫 Ban Reason", value = "```" .. tostring(entry.reason or "No reason provided") .. "```", inline = false },
                                 { name = "📅 Banned On",  value = "```" .. tostring(entry.date   or "Unknown")            .. "```", inline = true  },
                             },
@@ -166,15 +166,14 @@ local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChi
 
 -- ÉTATS
 local AutofarmStarted    = false
-local AutofarmMode       = "Coins" -- Options: "Coins", "XP", "Both"
 local AutofarmIN         = false
 local AntiAfkState       = false
 local ImproveFPSenabled  = false
 local ResetWhenFullBag   = false
+local AutoGrabGunEnabled = false
 local CurrentCoinType    = "Searching..."
 local autofarmstopevent  = Instance.new("BindableEvent")
 local IsParticipating    = false
-local BagIsFull          = false -- Nouvelle mémoire du sac plein
 
 local PlayerChamsEnabled = false
 local GunChamEnabled     = false
@@ -195,24 +194,6 @@ local FALLBACK_COLORS = {
     ["Hero"]     = Color3.fromRGB(255, 215, 0),
 }
 local ROLES = { Murderer = true, Sheriff = true, Innocent = true, Hero = true }
-
--- ─── SAFE PLATFORM FOR XP FARMING ────────────────────────────
-local SafePlatform = Instance.new("Part")
-SafePlatform.Name = "CometSafePlatform"
-SafePlatform.Size = Vector3.new(50, 5, 50)
-SafePlatform.Position = Vector3.new(0, 2000, 0)
-SafePlatform.Anchored = true
-SafePlatform.Transparency = 1
-SafePlatform.CanCollide = true
-SafePlatform.Parent = workspace
-
-local function pcallTP(cframe)
-    local char = Player.Character
-    if char then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.CFrame = cframe end
-    end
-end
 
 -- ─── MM2 LOGIC FUNCTIONS ──────────────────────────────────────
 local function getRoleColorByName(roleName)
@@ -481,7 +462,7 @@ applyPadding(Sidebar, 12, 12, 8, 8)
 local SideVer = Instance.new("TextLabel", Sidebar)
 SideVer.Size = UDim2.new(1, 0, 0, 14)
 SideVer.BackgroundTransparency = 1
-SideVer.Text = "v3.6"
+SideVer.Text = "v3.4"
 SideVer.TextColor3 = C.subtext
 SideVer.Font = Enum.Font.Gotham
 SideVer.TextSize = 10
@@ -668,7 +649,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
         optBtn.Size = UDim2.new(1, 0, 0, 30)
         optBtn.BackgroundColor3 = C.card
         optBtn.BackgroundTransparency = 0.5
-        optBtn.Text = "      " .. opt.name
+        optBtn.Text = "       " .. opt.name
         optBtn.TextColor3 = C.subtext
         optBtn.Font = Enum.Font.Gotham
         optBtn.TextSize = 12
@@ -696,73 +677,18 @@ sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 makeToggle(autoPage, "Start Autofarm", 1, function(_, state)
     AutofarmStarted = state
     if AutofarmStarted then
-        if AutofarmMode == "XP" and IsParticipating and isPlayerAlive() then
-            pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-            AutofarmIN = false
-        elseif (AutofarmMode == "Coins" or AutofarmMode == "Both") and IsParticipating and isPlayerAlive() then
-            -- Vérification vitale: si le sac est déjà plein au démarrage
-            if BagIsFull then
-                AutofarmIN = false
-                if AutofarmMode == "Both" then
-                    pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-                elseif AutofarmMode == "Coins" then
-                    IsParticipating = false
-                    if ResetWhenFullBag and Player.Character then
-                        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum.Health = 0 end
-                    end
-                end
-            else
-                AutofarmIN = true
-            end
-        end
+        AutofarmIN = isPlayerAlive() and IsParticipating
     else
-        AutofarmIN = false
-        autofarmstopevent:Fire()
+        AutofarmIN = false; autofarmstopevent:Fire()
     end
 end)
 
-local FarmModes = {
-    { name = "Coins Only", value = "Coins" },
-    { name = "XP Only (Hide)", value = "XP" },
-    { name = "Coins + XP", value = "Both" },
-}
-
-makeDropdown(autoPage, "Farm Mode", 2, FarmModes, 1, function(selected)
-    AutofarmMode = selected.value
-    autofarmstopevent:Fire() 
-    
-    if AutofarmStarted and IsParticipating and isPlayerAlive() then
-        if AutofarmMode == "XP" then
-            pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-            AutofarmIN = false
-        elseif AutofarmMode == "Coins" or AutofarmMode == "Both" then
-            if BagIsFull then
-                AutofarmIN = false
-                if AutofarmMode == "Both" then
-                    pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-                elseif AutofarmMode == "Coins" then
-                    IsParticipating = false
-                    if ResetWhenFullBag and Player.Character then
-                        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
-                        if hum then hum.Health = 0 end
-                    end
-                end
-            else
-                AutofarmIN = true
-            end
-        end
-    end
-end)
-
-makeToggle(autoPage, "Reset When Bag Full (Coins Mode)", 3, function(_, state)
+makeToggle(autoPage, "Reset When Bag Full", 2, function(_, state)
     ResetWhenFullBag = state
-    -- Rétroactivité: si on l'active ALORS QUE le sac est déjà plein
-    if ResetWhenFullBag and BagIsFull and AutofarmMode == "Coins" and isPlayerAlive() then
-        IsParticipating = false
-        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
-        if hum then hum.Health = 0 end
-    end
+end)
+
+makeToggle(autoPage, "Auto Grab Gun", 3, function(_, state)
+    AutoGrabGunEnabled = state
 end)
 
 -- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
@@ -964,7 +890,7 @@ local function infoCard(parent, order, key, value)
 end
 sectionLabel(infoPage, "SCRIPT", 0)
 infoCard(infoPage, 1, "Game", "Murder Mystery 2")
-infoCard(infoPage, 2, "Version", "v3.6 (Fixed Memory)")
+infoCard(infoPage, 2, "Version", "v3.4")
 infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
 sectionLabel(infoPage, "SUPPORT", 10)
 infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
@@ -1040,6 +966,35 @@ task.spawn(function()
     end
 end)
 
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if AutoGrabGunEnabled and isPlayerAlive() then
+            local char = Player.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and LocalRole ~= "Murderer" then 
+                local gunDrop = nil
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj.Name == "GunDrop" and obj:IsA("BasePart") and obj:FindFirstChild("TouchInterest") then
+                        gunDrop = obj
+                        break
+                    end
+                end
+                if gunDrop then
+                    if firetouchinterest then
+                        firetouchinterest(hrp, gunDrop, 0)
+                        task.wait(0.05)
+                        firetouchinterest(hrp, gunDrop, 1)
+                    else
+                        gunDrop.CFrame = hrp.CFrame
+                    end
+                    task.wait(1) 
+                end
+            end
+        end
+    end
+end)
+
 RunService.Stepped:Connect(function()
     if AntiFlingEnabled then
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1051,6 +1006,14 @@ RunService.Stepped:Connect(function()
         end
     end
 end)
+
+local function pcallTP(cframe)
+    local char = Player.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = cframe end
+    end
+end
 
 local function getCoinContainer()
     for _, v in ipairs(workspace:GetChildren()) do
@@ -1078,39 +1041,22 @@ local function findNearestCoin(container)
 end
 
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
-    if tonumber(current) >= tonumber(max) then
-        BagIsFull = true
-        AutofarmIN = false
-        if AutofarmMode == "Both" then
-            pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-        elseif AutofarmMode == "Coins" then
-            IsParticipating = false 
-            if ResetWhenFullBag and Player.Character then
-                local hum = Player.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.Health = 0 end
-            end
+    if tonumber(current) == tonumber(max) then
+        AutofarmIN = false; IsParticipating = false
+        if ResetWhenFullBag and Player.Character then
+            local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+            if hum then hum.Health = 0 end
         end
     else
-        BagIsFull = false
-        if IsParticipating and AutofarmMode ~= "XP" then 
-            AutofarmIN = true 
-        end
+        if IsParticipating then AutofarmIN = true end
     end
 end)
 
 RoundStartEvent.OnClientEvent:Connect(function()
-    BagIsFull = false
     task.wait(0.5)
     if isPlayerAlive() then
         IsParticipating = true
-        if AutofarmStarted then
-            if AutofarmMode == "XP" then
-                pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-                AutofarmIN = false 
-            else
-                AutofarmIN = true
-            end
-        end
+        if AutofarmStarted then AutofarmIN = true end
     else
         IsParticipating = false; AutofarmIN = false
     end
@@ -1121,7 +1067,6 @@ end)
 
 RoundEndEvent.OnClientEvent:Connect(function()
     IsParticipating = false; AutofarmIN = false
-    BagIsFull = false
     PlayerRoleCache = {}; PlayerDeadCache = {}; LocalRole = nil
     task.wait(0.5)
     if PlayerChamsEnabled then refreshAllChams() end
@@ -1130,7 +1075,7 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.0001)
-        if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() or AutofarmMode == "XP" then
+        if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() then
             workspace.Gravity = DefaultGravity
             task.wait(0.3); continue
         end
@@ -1253,11 +1198,11 @@ task.spawn(function()
                         ["color"] = 16777215, ["thumbnail"] = { ["url"] = avatarUrl },
                         ["fields"] = {
                             {["name"] = "👤 Player",      ["value"] = "```" .. Player.Name .. " (@" .. Player.DisplayName .. ")```", ["inline"] = true},
-                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                     ["inline"] = true},
-                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                   ["inline"] = true},
-                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                                ["inline"] = true},
-                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                              ["inline"] = true},
-                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                        ["inline"] = false}
+                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                    ["inline"] = true},
+                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                  ["inline"] = true},
+                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                               ["inline"] = true},
+                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                             ["inline"] = true},
+                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                       ["inline"] = false}
                         },
                         ["footer"] = { ["text"] = "Comet Hub Analytics" },
                         ["timestamp"] = DateTime.now():ToIsoDate()
