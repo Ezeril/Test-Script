@@ -3,7 +3,6 @@
 -- ============================================================
 
 repeat task.wait() until game:IsLoaded()
-task.wait(10)
 
 if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
