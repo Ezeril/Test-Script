@@ -221,6 +221,15 @@ if ls then
 else
     log(ERR, "leaderstats introuvable sur le joueur")
 end
+-- Cherche dans tous les enfants du player
+for _, v in ipairs(player:GetChildren()) do
+    print(v.Name .. " (" .. v.ClassName .. ")")
+    if v:IsA("Folder") or v:IsA("Configuration") then
+        for _, c in ipairs(v:GetChildren()) do
+            print("    → " .. c.Name .. " (" .. c.ClassName .. ") = " .. tostring(pcall(function() return c.Value end)))
+        end
+    end
+end
 
 -- ============================================================
 --  RÉSUMÉ
