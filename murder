@@ -180,7 +180,6 @@ local Rendering3DEnabled = false
 local NameESPEnabled     = false
 local AutoEmoteEnabled   = false
 local AntiFlingEnabled   = false
-local AutoGrabGunEnabled = false
 
 local RoleColorMap    = {}
 local LocalRole       = nil
@@ -839,12 +838,6 @@ makeToggle(miscPage, "Anti-Fling (Ghost Mode)", 3, function(_, state)
     AntiFlingEnabled = state
 end)
 
-sectionLabel(miscPage, "WEAPONS", 3.5)
-
-makeToggle(miscPage, "Auto Grab Gun", 3.6, function(_, state)
-    AutoGrabGunEnabled = state
-end)
-
 sectionLabel(miscPage, "EMOTES", 4)
 local EmoteData = {
     { name = "Zen",      command = "zen"      },
@@ -951,39 +944,6 @@ end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
 
--- ─── AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) ─────
-task.spawn(function()
-    while true do
-        task.wait(0.25)
-        -- Ne pas grab si on est Murderer (on a deja le couteau, pas besoin du gun)
-        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
-        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
-            local char = Player.Character
-            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-            -- On agit seulement si le joueur n'a pas encore le gun
-            if hrp and not char:FindFirstChild("Gun") then
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                        -- Methode Vertex : on teleporte le GunDrop sur le joueur (pas le joueur sur le gun)
-                        pcall(function()
-                            obj.CFrame = hrp.CFrame
-                        end)
-                        -- Fallback firetouchinterest (Synapse X / Wave / Fluxus supportent ca)
-                        if firetouchinterest then
-                            pcall(function()
-                                firetouchinterest(hrp, obj, 0)
-                                task.wait(0.05)
-                                firetouchinterest(hrp, obj, 1)
-                            end)
-                        end
-                        break -- on prend le premier GunDrop trouve
-                    end
-                end
-            end
-        end
-    end
-end)
-
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -1078,116 +1038,51 @@ RoundEndEvent.OnClientEvent:Connect(function()
     if PlayerChamsEnabled then refreshAllChams() end
 end)
 
--- ─── AUTOFARM LOOP (Vertex-style : CFrame direct Heartbeat + TweenService approche finale) ─────
 task.spawn(function()
-    local SPEED        = 20  -- studs/seconde (identique à Vertex ~20-21 stud/s)
-    local TWEEN_DIST   = 3   -- studs : distance à partir de laquelle on switch vers le tween
-    local TWEEN_DURATION = 1.2 -- secondes (identique à Vertex 1.230s détecté par spy)
-
     while true do
         task.wait(0.0001)
-
         if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() then
             workspace.Gravity = DefaultGravity
             task.wait(0.3); continue
         end
-
         workspace.Gravity = 0
-
         local char = Player.Character
         if not char then task.wait(0.3); continue end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hrp then task.wait(0.3); continue end
-
         local container = getCoinContainer()
         if not container then task.wait(0.3); continue end
         local coin, dist = findNearestCoin(container)
         if not coin then task.wait(0.5); continue end
 
-        -- TP directe si trop loin (inchangé)
         if dist > 150 then
             pcallTP(coin.CFrame + Vector3.new(0, 3, 0))
         else
-            local targetPos = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
-            local tweenDone = false
-            local stopFired = false
-
-            -- Noclip continu sur Stepped (pendant toute la durée du mouvement)
+            local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             local noclipConn = RunService.Stepped:Connect(function()
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                            part.CanCollide = false
-                        end
+                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
                     end
                 end
             end)
-
-            -- Connexion stop event
+            tw:Play()
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
-                stopFired = true
+                tw:Cancel()
+                if noclipConn then noclipConn:Disconnect() end
+                if stopConn then stopConn:Disconnect() end
             end)
-
-            -- ─── Phase 1 : Heartbeat CFrame direct à 20 studs/s ───────
-            -- Reset des forces physiques à chaque frame (bloque les poussées map)
-            local heartConn
-            heartConn = RunService.Heartbeat:Connect(function(dt)
-                if stopFired or not AutofarmIN then
-                    heartConn:Disconnect(); tweenDone = true; return
-                end
-                if tweenDone then return end
-
-                local dir = targetPos - hrp.Position
-                local d   = dir.Magnitude
-
-                -- Reset velocity chaque frame = anti-rollback map
-                hrp.AssemblyLinearVelocity = Vector3.zero
-                hrp.AssemblyAngularVelocity = Vector3.zero
-
-                if d <= TWEEN_DIST then
-                    -- ─── Phase 2 : TweenService Linear pour trigger le TouchInterest ───
-                    tweenDone = true
-                    heartConn:Disconnect()
-
-                    local tw = TweenService:Create(
-                        hrp,
-                        TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear),
-                        { CFrame = CFrame.new(targetPos) }
-                    )
-                    tw:Play()
-
-                    -- Fallback firetouchinterest à la fin du tween
-                    tw.Completed:Connect(function()
-                        if firetouchinterest and coin and coin:FindFirstChild("TouchInterest") then
-                            pcall(function()
-                                firetouchinterest(hrp, coin, 0)
-                                task.wait(0.05)
-                                firetouchinterest(hrp, coin, 1)
-                            end)
-                        end
-                    end)
-                else
-                    -- Déplacement direct à vitesse constante
-                    local step = math.min(SPEED * dt, d)
-                    hrp.CFrame = hrp.CFrame + dir.Unit * step
-                end
-            end)
-
-            -- Attente collecte de la pièce (timeout 6s)
-            local timeout = tick() + 6
-            while coin:FindFirstChild("TouchInterest") and tick() < timeout and not stopFired do
-                task.wait()
-            end
-
-            -- Cleanup
-            if not tweenDone and heartConn then heartConn:Disconnect() end
+            local timeout = tick() + 5
+            while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
+            tw:Cancel()
             if noclipConn then noclipConn:Disconnect() end
             if stopConn then stopConn:Disconnect() end
         end
     end
 end)
-
 
 -- ─── TOGGLE / OPEN / LOAD UI ─────────────────────────────────
 local OpenBtn = Instance.new("ImageButton", ScreenGui)
