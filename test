@@ -1,8 +1,8 @@
 -- ============================================================
---  VERTEX MOVEMENT SPY v1.0 — by Mathéo / Comet Hub
+--  VERTEX MOVEMENT SPY v1.1 — by Mathéo / Comet Hub
 --  Écoute toutes les techniques de mouvement utilisées
 --  par un script externe (ex: Vertex) en temps réel.
---  
+--
 --  USAGE : Exécuter AVANT de lancer Vertex
 --  F7 = Exporter le log complet (presse-papier)
 --  F8 = Afficher un résumé des techniques détectées
@@ -15,8 +15,8 @@ local UserInputService = game:GetService("UserInputService")
 local Player           = Players.LocalPlayer
 
 -- ─── STORAGE ──────────────────────────────────────────────
-local LOG       = {}
-local STATS     = {
+local LOG    = {}
+local STATS  = {
     tweenMoves    = 0,
     directCframes = 0,
     velocityReset = 0,
@@ -30,46 +30,40 @@ local TECHNIQUES = {}
 local function log(cat, msg, important)
     local entry = string.format("[%s][%.2fs] %s", cat, tick() % 1000, msg)
     table.insert(LOG, entry)
-    if important then
-        warn(entry)
-    else
-        print(entry)
-    end
+    if important then warn(entry) else print(entry) end
 end
 
 local function detectTechnique(name)
     if not TECHNIQUES[name] then
         TECHNIQUES[name] = true
-        log("✅ TECH", "Technique détectée : " .. name, true)
+        log("TECH", "✅ Technique détectée : " .. name, true)
     end
 end
 
 -- ─── 1. HOOK TWEENSERVICE:CREATE ──────────────────────────
--- Détecte si Vertex utilise TweenService pour déplacer le HRP
-local origCreate = TweenService.Create
-TweenService.Create = function(self, instance, tweenInfo, props)
-    if instance and instance:IsA("BasePart") then
-        local isHRP = instance.Name == "HumanoidRootPart"
-        local propsStr = ""
-        for k, v in pairs(props) do
-            propsStr = propsStr .. tostring(k) .. "=" .. tostring(v) .. " "
+-- Utilise hookfunction pour ne pas casser les méthodes de service
+if hookfunction then
+    local origCreate
+    origCreate = hookfunction(TweenService.Create, function(self, instance, tweenInfo, props)
+        if instance and instance:IsA("BasePart") then
+            if instance.Name == "HumanoidRootPart" or props.CFrame then
+                STATS.tweenMoves += 1
+                detectTechnique("TweenService CFrame")
+                log("TWEEN", string.format(
+                    "%s | durée=%.3fs | style=%s",
+                    instance.Name, tweenInfo.Time, tostring(tweenInfo.EasingStyle)
+                ))
+            end
         end
-        if isHRP or props.CFrame then
-            STATS.tweenMoves += 1
-            detectTechnique("TweenService CFrame")
-            log("TWEEN", string.format(
-                "%s | durée=%.3fs | style=%s | props={%s}",
-                instance.Name, tweenInfo.Time,
-                tostring(tweenInfo.EasingStyle), propsStr
-            ))
-        end
-    end
-    return origCreate(self, instance, tweenInfo, props)
+        return origCreate(self, instance, tweenInfo, props)
+    end)
+    log("SPY", "✅ Hook TweenService:Create actif")
+else
+    log("SPY", "⚠️ hookfunction non dispo — hook TweenService ignoré")
 end
 
 -- ─── 2. HOOK HRP CFrame (direct assignment) ───────────────
--- Détecte les CFrame directs (hrp.CFrame = ...) 
--- Plus rapide que TweenService → technique anti-rollback
+-- Détecte les overrides directs frame-by-frame (anti-rollback)
 local function hookHRP(char)
     local hrp = char:WaitForChild("HumanoidRootPart", 5)
     if not hrp then return end
@@ -83,9 +77,8 @@ local function hookHRP(char)
         local delta  = (newPos - lastPos).Magnitude
         local dt     = now - lastTime
 
-        -- Filtrer les micro-mouvements physiques normaux (<0.05 studs/frame)
+        -- Mouvement très rapide en très peu de temps = override direct (pas physique)
         if delta > 0.15 and dt < 0.05 then
-            -- Mouvement très rapide = override direct (pas physique)
             STATS.directCframes += 1
             detectTechnique("CFrame Direct (anti-rollback)")
             log("CFRAME", string.format(
@@ -99,7 +92,6 @@ local function hookHRP(char)
     end)
 
     -- ─── 3. HOOK AssemblyLinearVelocity ───────────────────
-    -- Reset à zero = bloque les forces physiques de la map
     hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"):Connect(function()
         local vel = hrp.AssemblyLinearVelocity
         if vel.Magnitude < 0.001 then
@@ -117,7 +109,6 @@ local function hookHRP(char)
 end
 
 -- ─── 4. HOOK CANCOLLIDE (noclip) ──────────────────────────
--- Vertex désactive les collisions pour traverser les murs
 local function monitorCanCollide(char)
     local function watch(part)
         if not part:IsA("BasePart") then return end
@@ -138,7 +129,6 @@ local function monitorCanCollide(char)
 end
 
 -- ─── 5. HOOK FIRETOUCHINTEREST ────────────────────────────
--- Vertex simule un toucher de coin sans vraiment se déplacer dessus
 if firetouchinterest then
     local origFTI = firetouchinterest
     firetouchinterest = function(p1, p2, toggle)
@@ -152,20 +142,18 @@ if firetouchinterest then
         ))
         return origFTI(p1, p2, toggle)
     end
+    log("SPY", "✅ Hook firetouchinterest actif")
 else
-    log("SPY", "firetouchinterest non disponible sur cet exploit")
+    log("SPY", "⚠️ firetouchinterest non disponible sur cet exploit")
 end
 
 -- ─── 6. HOOK WORKSPACE GRAVITY ────────────────────────────
--- Certains scripts mettent gravity=0 pour flotter librement
 local lastGrav = workspace.Gravity
 workspace:GetPropertyChangedSignal("Gravity"):Connect(function()
     local newGrav = workspace.Gravity
     STATS.gravityChange += 1
     detectTechnique("workspace.Gravity modifiée")
-    log("GRAVITY", string.format(
-        "Gravity: %.1f → %.1f", lastGrav, newGrav
-    ), true)
+    log("GRAVITY", string.format("Gravity: %.1f → %.1f", lastGrav, newGrav), true)
     lastGrav = newGrav
 end)
 
@@ -179,7 +167,7 @@ pcall(function()
         rem.OnClientEvent:Connect(function(...)
             STATS.coinCollected += 1
             log("COIN", string.format(
-                "Pièce collectée (total: %d) | args: %s",
+                "Pièce collectée (total: %d) | data: %s",
                 STATS.coinCollected, tostring(select(1, ...))
             ))
         end)
@@ -188,27 +176,28 @@ pcall(function()
 end)
 
 -- ─── 8. SURVEILLER LES CONNEXIONS RUNSERVICE ──────────────
--- Compte les connexions Heartbeat/Stepped pour détecter des loops
-local origHBConnect = RunService.Heartbeat.Connect
-local hbConnCount = 0
-RunService.Heartbeat.Connect = function(self, fn)
-    hbConnCount += 1
-    log("LOOP", string.format(
-        "Nouvelle connexion Heartbeat (#%d)", hbConnCount
-    ))
-    detectTechnique("RunService.Heartbeat loop")
-    return origHBConnect(self, fn)
-end
+-- Utilise hookfunction pour ne pas casser les signaux
+if hookfunction then
+    local hbCount = 0
+    local origHBConnect
+    origHBConnect = hookfunction(RunService.Heartbeat.Connect, function(self, fn)
+        hbCount += 1
+        detectTechnique("RunService.Heartbeat loop")
+        log("LOOP", string.format("Nouvelle connexion Heartbeat (#%d)", hbCount))
+        return origHBConnect(self, fn)
+    end)
 
-local origSteppedConnect = RunService.Stepped.Connect
-local steppedConnCount = 0
-RunService.Stepped.Connect = function(self, fn)
-    steppedConnCount += 1
-    log("LOOP", string.format(
-        "Nouvelle connexion Stepped (#%d)", steppedConnCount
-    ))
-    detectTechnique("RunService.Stepped loop")
-    return origSteppedConnect(self, fn)
+    local stCount = 0
+    local origStConnect
+    origStConnect = hookfunction(RunService.Stepped.Connect, function(self, fn)
+        stCount += 1
+        detectTechnique("RunService.Stepped loop")
+        log("LOOP", string.format("Nouvelle connexion Stepped (#%d)", stCount))
+        return origStConnect(self, fn)
+    end)
+    log("SPY", "✅ Hook RunService connections actif")
+else
+    log("SPY", "⚠️ hookfunction non dispo — hook RunService ignoré")
 end
 
 -- ─── 9. COMMANDES CLAVIER ─────────────────────────────────
@@ -226,22 +215,22 @@ UserInputService.InputBegan:Connect(function(input, gpe)
         end
     end
 
-    -- F8 = Résumé des techniques détectées
+    -- F8 = Résumé des techniques
     if input.KeyCode == Enum.KeyCode.F8 then
-        warn("\n╔═══ VERTEX SPY - RAPPORT FINAL ═══╗")
+        warn("\n╔═══ VERTEX SPY — RAPPORT FINAL ═══╗")
         warn(string.format("║ Tweens CFrame       : %d", STATS.tweenMoves))
-        warn(string.format("║ CFrame directs      : %d  ← technique anti-rollback", STATS.directCframes))
-        warn(string.format("║ Velocity resets     : %d  ← bloque les forces map", STATS.velocityReset))
+        warn(string.format("║ CFrame directs      : %d  ← anti-rollback", STATS.directCframes))
+        warn(string.format("║ Velocity resets     : %d  ← bloque forces map", STATS.velocityReset))
         warn(string.format("║ Noclip toggles      : %d", STATS.noclipToggles))
-        warn(string.format("║ firetouchinterest   : %d  ← collecte sans contact physique", STATS.touchFires))
+        warn(string.format("║ firetouchinterest   : %d  ← collecte sans contact", STATS.touchFires))
         warn(string.format("║ Gravity changes     : %d", STATS.gravityChange))
         warn(string.format("║ Pièces collectées   : %d", STATS.coinCollected))
-        warn("╠══════════════════════════════════╣")
+        warn("╠═══════════════════════════════════╣")
         warn("║ TECHNIQUES DÉTECTÉES :")
         for tech, _ in pairs(TECHNIQUES) do
             warn("║  → " .. tech)
         end
-        warn("╚══════════════════════════════════╝")
+        warn("╚═══════════════════════════════════╝")
     end
 end)
 
@@ -256,5 +245,5 @@ Player.CharacterAdded:Connect(function(char)
     monitorCanCollide(char)
 end)
 
-log("SPY", "=== VERTEX MOVEMENT SPY ACTIF ===", true)
-log("SPY", "Lance Vertex maintenant, puis appuie F8 pour le rapport")
+warn("=== VERTEX MOVEMENT SPY v1.1 ACTIF ===")
+warn("Lance Vertex maintenant → F8 pour le rapport | F7 pour le log complet")
