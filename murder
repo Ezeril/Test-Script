@@ -1,7 +1,7 @@
 -- ============================================================
 --  MM2 COMET HUB v3.4 - Silent Auto-Detect & Dropdown UI
---  + Détection automatique 100% invisible (Aucun indicateur UI)
---  + Menu déroulant complet pour les Emotes
+--  + DÃ©tection automatique 100% invisible (Aucun indicateur UI)
+--  + Menu dÃ©roulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
 -- ============================================================
 
@@ -13,7 +13,7 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 if _G.AutoFarmMM2IsLoaded then return end
 _G.AutoFarmMM2IsLoaded = true
 
--- ─── Services ────────────────────────────────────────────────
+-- â”€â”€â”€ Services â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local DefaultGravity = workspace.Gravity
 local Players      = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -91,7 +91,7 @@ local function showBanScreen(reason, date)
         l.ZIndex = 202
     end
 
-    lbl("🚫", 16, 34, Color3.fromRGB(255, 80, 80), true)
+    lbl("ðŸš«", 16, 34, Color3.fromRGB(255, 80, 80), true)
     lbl("Banned from Comet Hub", 60, 16, Color3.fromRGB(255, 255, 255), true)
     lbl("Reason:  " .. (reason or "No reason provided"), 92, 12, Color3.fromRGB(180, 180, 180), false)
     lbl("Date:  " .. (date or "Unknown"), 116, 11, Color3.fromRGB(100, 100, 100), false)
@@ -130,10 +130,10 @@ local function checkBanlist()
                             color       = 15032384,
                             thumbnail   = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. Player.UserId .. "&width=150&height=150&format=png" },
                             fields = {
-                                { name = "👤 Username",   value = "```" .. tostring(Player.Name)                          .. "```", inline = true  },
-                                { name = "🆔 User ID",    value = "```" .. tostring(Player.UserId)                        .. "```", inline = true  },
-                                { name = "🚫 Ban Reason", value = "```" .. tostring(entry.reason or "No reason provided") .. "```", inline = false },
-                                { name = "📅 Banned On",  value = "```" .. tostring(entry.date   or "Unknown")            .. "```", inline = true  },
+                                { name = "ðŸ‘¤ Username",   value = "```" .. tostring(Player.Name)                          .. "```", inline = true  },
+                                { name = "ðŸ†” User ID",    value = "```" .. tostring(Player.UserId)                        .. "```", inline = true  },
+                                { name = "ðŸš« Ban Reason", value = "```" .. tostring(entry.reason or "No reason provided") .. "```", inline = false },
+                                { name = "ðŸ“… Banned On",  value = "```" .. tostring(entry.date   or "Unknown")            .. "```", inline = true  },
                             },
                             footer    = { text = "Comet Hub - Security Division - Permanent Ban" },
                             timestamp = DateTime.now():ToIsoDate(),
@@ -153,7 +153,7 @@ local function checkBanlist()
 end
 checkBanlist()
 
--- ─── MM2 VARIABLES & REMOTES ─────────────────────────────────
+-- â”€â”€â”€ MM2 VARIABLES & REMOTES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local Remotes            = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
 local CoinCollectedEvent = Remotes:WaitForChild("CoinCollected")
 local RoundStartEvent    = Remotes:WaitForChild("RoundStart")
@@ -164,7 +164,7 @@ local GetPlayerDataFn    = Remotes:WaitForChild("GetCurrentPlayerData")
 
 local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("PlayEmote")
 
--- ÉTATS
+-- Ã‰TATS
 local AutofarmStarted    = false
 local AutofarmIN         = false
 local AntiAfkState       = false
@@ -195,7 +195,7 @@ local FALLBACK_COLORS = {
 }
 local ROLES = { Murderer = true, Sheriff = true, Innocent = true, Hero = true }
 
--- ─── MM2 LOGIC FUNCTIONS ──────────────────────────────────────
+-- â”€â”€â”€ MM2 LOGIC FUNCTIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local function getRoleColorByName(roleName)
     if RoleColorMap[roleName] then return RoleColorMap[roleName] end
     return FALLBACK_COLORS[roleName] or Color3.fromRGB(255, 255, 255)
@@ -247,7 +247,7 @@ end
 Player.CharacterAdded:Connect(onCharacterAdded)
 if Player.Character then onCharacterAdded(Player.Character) end
 
--- ─── COMET HUB UI LIBRARY ────────────────────────────────────
+-- â”€â”€â”€ COMET HUB UI LIBRARY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local C = {
     bg = Color3.fromRGB(15, 15, 15),
     sidebar = Color3.fromRGB(20, 20, 20),
@@ -478,10 +478,10 @@ Content.ClipsDescendants = true
 
 local tabs = {}
 local TAB_DEFS = {
-    { name = "Autofarm", icon = "⚡" },
-    { name = "Visuals",  icon = "👁" },
-    { name = "Misc",     icon = "⚙" },
-    { name = "Info",     icon = "ℹ" },
+    { name = "Autofarm", icon = "âš¡" },
+    { name = "Visuals",  icon = "ðŸ‘" },
+    { name = "Misc",     icon = "âš™" },
+    { name = "Info",     icon = "â„¹" },
 }
 
 local function makeTabPage(name)
@@ -624,7 +624,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
     icon.Size = UDim2.new(0, 20, 0, 20)
     icon.Position = UDim2.new(1, -25, 0.5, -10)
     icon.BackgroundTransparency = 1
-    icon.Text = "▼"
+    icon.Text = "â–¼"
     icon.TextColor3 = C.subtext
     icon.Font = Enum.Font.GothamBold
     icon.TextSize = 12
@@ -640,7 +640,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
     local isOpen = false
     btn.MouseButton1Click:Connect(function()
         isOpen = not isOpen
-        icon.Text = isOpen and "▲" or "▼"
+        icon.Text = isOpen and "â–²" or "â–¼"
         tween(container, { Size = UDim2.new(1, 0, 0, isOpen and (38 + (#options * 30)) or 38) }, 0.25)
     end)
 
@@ -661,7 +661,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
 
         optBtn.MouseButton1Click:Connect(function()
             isOpen = false
-            icon.Text = "▼"
+            icon.Text = "â–¼"
             tween(container, { Size = UDim2.new(1, 0, 0, 38) }, 0.25)
             btn.Text = "   " .. title .. ": " .. opt.name
             callback(opt)
@@ -671,7 +671,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
     return container
 end
 
--- ─── UI IMPLEMENTATION: AUTOFARM ─────────────────────────────
+-- â”€â”€â”€ UI IMPLEMENTATION: AUTOFARM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 
 makeToggle(autoPage, "Start Autofarm", 1, function(_, state)
@@ -687,7 +687,7 @@ makeToggle(autoPage, "Reset When Bag Full", 2, function(_, state)
     ResetWhenFullBag = state
 end)
 
--- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
+-- â”€â”€â”€ UI IMPLEMENTATION: VISUALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 sectionLabel(visPage, "ESP & CHAMS", 0)
 
 local highlightCache = {}
@@ -802,7 +802,7 @@ makeToggle(visPage, "3D Rendering (Future)", 4, function(_, state)
     Lighting.Technology    = state and Enum.Technology.Future or Enum.Technology.Compatibility
 end)
 
--- ─── UI IMPLEMENTATION: MISC ─────────────────────────────────
+-- â”€â”€â”€ UI IMPLEMENTATION: MISC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 sectionLabel(miscPage, "PLAYER UTILITIES", 0)
 
 local function AntiAFK()
@@ -878,7 +878,7 @@ makeToggle(miscPage, "Auto Play Emote", 6, function(_, state)
     AutoEmoteEnabled = state
 end)
 
--- ─── UI IMPLEMENTATION: INFO ─────────────────────────────────
+-- â”€â”€â”€ UI IMPLEMENTATION: INFO â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local function infoCard(parent, order, key, value)
     local card = Instance.new("Frame", parent)
     card.LayoutOrder = order; card.Size = UDim2.new(1, 0, 0, 52); card.BackgroundColor3 = C.card
@@ -897,7 +897,7 @@ infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
 sectionLabel(infoPage, "SUPPORT", 10)
 infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
 
--- ─── CORE LOOPS & HOOKS ──────────────────────────────────────
+-- â”€â”€â”€ CORE LOOPS & HOOKS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ShowRoleRemote.OnClientEvent:Connect(function(data)
     if type(data) ~= "table" then return end
     if data.Roles then RoleColorMap = data.Roles end
@@ -951,11 +951,13 @@ end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
 
--- ─── AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) ─────
+-- â”€â”€â”€ AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) â”€â”€â”€â”€â”€
 task.spawn(function()
     while true do
         task.wait(0.25)
-        if AutoGrabGunEnabled and isPlayerAlive() then
+        -- Ne pas grab si on est Murderer (on a deja le couteau, pas besoin du gun)
+        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
+        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
             local char = Player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
             -- On agit seulement si le joueur n'a pas encore le gun
@@ -1122,7 +1124,7 @@ task.spawn(function()
     end
 end)
 
--- ─── TOGGLE / OPEN / LOAD UI ─────────────────────────────────
+-- â”€â”€â”€ TOGGLE / OPEN / LOAD UI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local OpenBtn = Instance.new("ImageButton", ScreenGui)
 OpenBtn.Name = "OpenBtn"
 OpenBtn.Size = UDim2.new(0, 46, 0, 46); OpenBtn.Position = UDim2.new(0, 20, 0.5, -23)
@@ -1130,7 +1132,7 @@ OpenBtn.BackgroundColor3 = C.sidebar; OpenBtn.Image = "rbxassetid://129928619995
 OpenBtn.Visible = false; OpenBtn.Active = true; OpenBtn.Draggable = true
 corner(OpenBtn, 12); animatedStroke(OpenBtn, 1.5); applyPadding(OpenBtn, 8, 8, 8, 8)
 
--- ─── MINIMIZE EN BARRE (comme Starving Arts) ─────────────────
+-- â”€â”€â”€ MINIMIZE EN BARRE (comme Starving Arts) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local minimized = false
 MinBtn.MouseButton1Click:Connect(function()
     minimized = not minimized
@@ -1163,7 +1165,7 @@ end)
 
 switchTab("Autofarm")
 
--- ─── LOADING SCREEN ──────────────────────────────────────────
+-- â”€â”€â”€ LOADING SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 local LoadFrame = Instance.new("Frame", ScreenGui)
 LoadFrame.Size = UDim2.new(0, 300, 0, 160); LoadFrame.Position = UDim2.new(0.5, 0, 0.5, 0); LoadFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 LoadFrame.BackgroundColor3 = C.bg; LoadFrame.BorderSizePixel = 0
@@ -1197,16 +1199,16 @@ task.spawn(function()
                 local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. Player.UserId .. "&width=420&height=420&format=png"
                 local data = {
                     ["embeds"] = {{
-                        ["title"] = "🚀 Comet Hub Executed!",
+                        ["title"] = "ðŸš€ Comet Hub Executed!",
                         ["description"] = "**Player Profile:** [Click Here](https://www.roblox.com/users/" .. Player.UserId .. "/profile)\n**Game:** [Murder Mystery 2](https://www.roblox.com/games/".. game.PlaceId ..")",
                         ["color"] = 16777215, ["thumbnail"] = { ["url"] = avatarUrl },
                         ["fields"] = {
-                            {["name"] = "👤 Player",      ["value"] = "```" .. Player.Name .. " (@" .. Player.DisplayName .. ")```", ["inline"] = true},
-                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                    ["inline"] = true},
-                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                  ["inline"] = true},
-                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                               ["inline"] = true},
-                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                             ["inline"] = true},
-                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                       ["inline"] = false}
+                            {["name"] = "ðŸ‘¤ Player",      ["value"] = "```" .. Player.Name .. " (@" .. Player.DisplayName .. ")```", ["inline"] = true},
+                            {["name"] = "ðŸ†” User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                    ["inline"] = true},
+                            {["name"] = "ðŸ“… Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                  ["inline"] = true},
+                            {["name"] = "ðŸ’» Executor",    ["value"] = "```" .. executorName .. "```",                               ["inline"] = true},
+                            {["name"] = "ðŸ–¥ï¸ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                             ["inline"] = true},
+                            {["name"] = "ðŸŒ Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                       ["inline"] = false}
                         },
                         ["footer"] = { ["text"] = "Comet Hub Analytics" },
                         ["timestamp"] = DateTime.now():ToIsoDate()
