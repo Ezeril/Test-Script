@@ -1,0 +1,64 @@
+-- =====================================================================
+--  MM2 NETWORK SPY : Traqueur d'Autofarm (Analyse Vertex / Gameplay)
+-- =====================================================================
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+print("\n=======================================================")
+print("🕵️ SPY AUTOFARM ACTIVÉ ! En attente des actions de Vertex...")
+print("=======================================================\n")
+
+-- Liste noire pour éviter de spammer la console avec des remotes inutiles (comme la marche ou la caméra si le jeu en envoie)
+local BlacklistedRemotes = {
+    ["GetTime"] = true,
+    ["Ping"] = true,
+    ["UpdateMousePosition"] = true
+}
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+
+    -- On écoute FireServer (Actions) ET InvokeServer (Demandes de données)
+    if (method == "FireServer" or method == "InvokeServer") and typeof(self) == "Instance" and (self:IsA("RemoteEvent") or self:IsA("RemoteFunction")) then
+        local remoteName = self.Name
+        
+        -- On ignore les remotes spammées sans intérêt
+        if not BlacklistedRemotes[remoteName] then
+            
+            -- On filtre pour se concentrer sur les remotes de MM2 (Gameplay, Misc, etc.)
+            -- Si tu veux TOUT voir, tu peux enlever cette condition `if string.find...`
+            if string.find(self:GetFullName(), "Remotes") then
+                
+                print("\n⚡ [" .. string.upper(method) .. "] INTERCEPTÉ : " .. self.Name)
+                print("📂 Chemin : " .. self:GetFullName())
+                
+                if #args == 0 then
+                    print("   ➡️ Arguments : (Aucun)")
+                else
+                    for i, arg in ipairs(args) do
+                        local argType = typeof(arg)
+                        -- Si l'argument est une table (souvent utilisé pour les positions ou les listes d'objets)
+                        if argType == "table" then
+                            print("   ➡️ Arg " .. i .. " : [Table détectée] (Taille: " .. #arg .. ")")
+                            for k, v in pairs(arg) do
+                                print("      ["..tostring(k).."] = " .. tostring(v))
+                            end
+                        -- Si c'est une position dans l'espace (CFrame ou Vector3)
+                        elseif argType == "CFrame" or argType == "Vector3" then
+                            print("   ➡️ Arg " .. i .. " : " .. tostring(arg) .. " (Coordonnées " .. argType .. ")")
+                        -- Si c'est un objet du jeu (Instance)
+                        elseif argType == "Instance" then
+                            print("   ➡️ Arg " .. i .. " : " .. arg:GetFullName() .. " (Objet)")
+                        else
+                            print("   ➡️ Arg " .. i .. " : " .. tostring(arg) .. " (" .. argType .. ")")
+                        end
+                    end
+                end
+                print("--------------------------------------------------")
+            end
+        end
+    end
+
+    return oldNamecall(self, ...)
+end)
