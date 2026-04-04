@@ -1,249 +1,233 @@
 -- ============================================================
---  VERTEX MOVEMENT SPY v1.1 — by Mathéo / Comet Hub
---  Écoute toutes les techniques de mouvement utilisées
---  par un script externe (ex: Vertex) en temps réel.
---
---  USAGE : Exécuter AVANT de lancer Vertex
---  F7 = Exporter le log complet (presse-papier)
---  F8 = Afficher un résumé des techniques détectées
+--  COMET HUB - Diagnostic Script v1.0
+--  Colle ce script dans ton exécuteur et regarde la console
 -- ============================================================
 
-local Players          = game:GetService("Players")
-local TweenService     = game:GetService("TweenService")
-local RunService       = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local Player           = Players.LocalPlayer
+local Players           = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local player            = Players.LocalPlayer
 
--- ─── STORAGE ──────────────────────────────────────────────
-local LOG    = {}
-local STATS  = {
-    tweenMoves    = 0,
-    directCframes = 0,
-    velocityReset = 0,
-    noclipToggles = 0,
-    touchFires    = 0,
-    gravityChange = 0,
-    coinCollected = 0,
-}
-local TECHNIQUES = {}
+local OK  = "✅"
+local ERR = "❌"
+local WRN = "⚠️"
 
-local function log(cat, msg, important)
-    local entry = string.format("[%s][%.2fs] %s", cat, tick() % 1000, msg)
-    table.insert(LOG, entry)
-    if important then warn(entry) else print(entry) end
+local function log(icon, msg)
+    print(icon .. "  " .. msg)
 end
 
-local function detectTechnique(name)
-    if not TECHNIQUES[name] then
-        TECHNIQUES[name] = true
-        log("TECH", "✅ Technique détectée : " .. name, true)
+local function sep(title)
+    print("\n========== " .. title .. " ==========")
+end
+
+-- ============================================================
+--  1. BOOTHLOCATION
+-- ============================================================
+sep("BOOTHLOCATION")
+
+local _boothlocation = nil
+
+local ws_mapui = workspace:FindFirstChild("MapUI")
+if ws_mapui then
+    _boothlocation = ws_mapui
+    log(OK, "workspace.MapUI trouvé → utilisé comme _boothlocation")
+else
+    log(ERR, "workspace.MapUI introuvable")
+end
+
+if not _boothlocation then
+    local pg = player:FindFirstChild("PlayerGui")
+    if pg then
+        local container = pg:FindFirstChild("MapUIContainer")
+        if container then
+            local mapui = container:FindFirstChild("MapUI")
+            if mapui then
+                _boothlocation = mapui
+                log(OK, "PlayerGui.MapUIContainer.MapUI trouvé → utilisé comme _boothlocation")
+            else
+                log(ERR, "PlayerGui.MapUIContainer.MapUI introuvable")
+            end
+        else
+            log(ERR, "PlayerGui.MapUIContainer introuvable")
+        end
+    else
+        log(ERR, "PlayerGui introuvable")
     end
 end
 
--- ─── 1. HOOK TWEENSERVICE:CREATE ──────────────────────────
--- Utilise hookfunction pour ne pas casser les méthodes de service
-if hookfunction then
-    local origCreate
-    origCreate = hookfunction(TweenService.Create, function(self, instance, tweenInfo, props)
-        if instance and instance:IsA("BasePart") then
-            if instance.Name == "HumanoidRootPart" or props.CFrame then
-                STATS.tweenMoves += 1
-                detectTechnique("TweenService CFrame")
-                log("TWEEN", string.format(
-                    "%s | durée=%.3fs | style=%s",
-                    instance.Name, tweenInfo.Time, tostring(tweenInfo.EasingStyle)
-                ))
-            end
-        end
-        return origCreate(self, instance, tweenInfo, props)
-    end)
-    log("SPY", "✅ Hook TweenService:Create actif")
-else
-    log("SPY", "⚠️ hookfunction non dispo — hook TweenService ignoré")
+if not _boothlocation then
+    log(ERR, "FATAL: _boothlocation est nil — le script va serverHop immédiatement")
 end
 
--- ─── 2. HOOK HRP CFrame (direct assignment) ───────────────
--- Détecte les overrides directs frame-by-frame (anti-rollback)
-local function hookHRP(char)
-    local hrp = char:WaitForChild("HumanoidRootPart", 5)
-    if not hrp then return end
+-- ============================================================
+--  2. BOOTHUI
+-- ============================================================
+sep("BOOTHUI")
 
-    local lastPos  = hrp.Position
-    local lastTime = tick()
+local boothUI = nil
+if _boothlocation then
+    boothUI = _boothlocation:FindFirstChild("BoothUI")
+    if boothUI then
+        log(OK, "BoothUI trouvé dans _boothlocation")
+        local children = boothUI:GetChildren()
+        log(OK, "Nombre de booths dans BoothUI: " .. #children)
+        if #children > 0 then
+            local first = children[1]
+            log(OK, "Premier enfant: " .. first.Name)
 
-    hrp:GetPropertyChangedSignal("CFrame"):Connect(function()
-        local now    = tick()
-        local newPos = hrp.Position
-        local delta  = (newPos - lastPos).Magnitude
-        local dt     = now - lastTime
-
-        -- Mouvement très rapide en très peu de temps = override direct (pas physique)
-        if delta > 0.15 and dt < 0.05 then
-            STATS.directCframes += 1
-            detectTechnique("CFrame Direct (anti-rollback)")
-            log("CFRAME", string.format(
-                "Override direct | Δ=%.3f studs | dt=%.4fs | vitesse=%.1f stud/s",
-                delta, dt, delta / math.max(dt, 0.001)
-            ))
-        end
-
-        lastPos  = newPos
-        lastTime = now
-    end)
-
-    -- ─── 3. HOOK AssemblyLinearVelocity ───────────────────
-    hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"):Connect(function()
-        local vel = hrp.AssemblyLinearVelocity
-        if vel.Magnitude < 0.001 then
-            STATS.velocityReset += 1
-            if STATS.velocityReset <= 3 or STATS.velocityReset % 100 == 0 then
-                detectTechnique("AssemblyLinearVelocity Reset (anti-physique)")
-                log("VELOCITY", string.format(
-                    "Velocity reset → zéro (total: %d fois)", STATS.velocityReset
-                ))
-            end
-        end
-    end)
-
-    log("SPY", "✅ Hook HRP actif sur " .. Player.Name)
-end
-
--- ─── 4. HOOK CANCOLLIDE (noclip) ──────────────────────────
-local function monitorCanCollide(char)
-    local function watch(part)
-        if not part:IsA("BasePart") then return end
-        part:GetPropertyChangedSignal("CanCollide"):Connect(function()
-            if not part.CanCollide then
-                STATS.noclipToggles += 1
-                if STATS.noclipToggles <= 5 or STATS.noclipToggles % 50 == 0 then
-                    detectTechnique("CanCollide = false (noclip)")
-                    log("NOCLIP", string.format(
-                        "%s.CanCollide désactivé (total: %d)", part.Name, STATS.noclipToggles
-                    ))
+            -- Vérif Details.Owner
+            local details = first:FindFirstChild("Details")
+            if details then
+                log(OK, "Details trouvé")
+                local owner = details:FindFirstChild("Owner")
+                if owner then
+                    log(OK, "Owner trouvé — Text = '" .. tostring(owner.Text) .. "'")
+                else
+                    log(ERR, "Owner introuvable dans Details")
+                end
+            else
+                log(ERR, "Details introuvable dans " .. first.Name)
+                log(WRN, "Enfants de " .. first.Name .. ":")
+                for _, v in ipairs(first:GetChildren()) do
+                    print("    → " .. v.Name .. " (" .. v.ClassName .. ")")
                 end
             end
-        end)
-    end
-    for _, v in ipairs(char:GetDescendants()) do watch(v) end
-    char.DescendantAdded:Connect(watch)
-end
 
--- ─── 5. HOOK FIRETOUCHINTEREST ────────────────────────────
-if firetouchinterest then
-    local origFTI = firetouchinterest
-    firetouchinterest = function(p1, p2, toggle)
-        STATS.touchFires += 1
-        detectTechnique("firetouchinterest (touch simulé)")
-        log("TOUCH", string.format(
-            "firetouchinterest(%s → %s, toggle=%d)",
-            p1 and p1.Name or "?",
-            p2 and p2.Name or "?",
-            toggle
-        ))
-        return origFTI(p1, p2, toggle)
-    end
-    log("SPY", "✅ Hook firetouchinterest actif")
-else
-    log("SPY", "⚠️ firetouchinterest non disponible sur cet exploit")
-end
-
--- ─── 6. HOOK WORKSPACE GRAVITY ────────────────────────────
-local lastGrav = workspace.Gravity
-workspace:GetPropertyChangedSignal("Gravity"):Connect(function()
-    local newGrav = workspace.Gravity
-    STATS.gravityChange += 1
-    detectTechnique("workspace.Gravity modifiée")
-    log("GRAVITY", string.format("Gravity: %.1f → %.1f", lastGrav, newGrav), true)
-    lastGrav = newGrav
-end)
-
--- ─── 7. SURVEILLER COIN COLLECTED REMOTE ──────────────────
-pcall(function()
-    local rem = game.ReplicatedStorage
-        :WaitForChild("Remotes", 3)
-        :WaitForChild("Gameplay", 3)
-        :WaitForChild("CoinCollected", 3)
-    if rem then
-        rem.OnClientEvent:Connect(function(...)
-            STATS.coinCollected += 1
-            log("COIN", string.format(
-                "Pièce collectée (total: %d) | data: %s",
-                STATS.coinCollected, tostring(select(1, ...))
-            ))
-        end)
-        log("SPY", "✅ Hook CoinCollected actif")
-    end
-end)
-
--- ─── 8. SURVEILLER LES CONNEXIONS RUNSERVICE ──────────────
--- Utilise hookfunction pour ne pas casser les signaux
-if hookfunction then
-    local hbCount = 0
-    local origHBConnect
-    origHBConnect = hookfunction(RunService.Heartbeat.Connect, function(self, fn)
-        hbCount += 1
-        detectTechnique("RunService.Heartbeat loop")
-        log("LOOP", string.format("Nouvelle connexion Heartbeat (#%d)", hbCount))
-        return origHBConnect(self, fn)
-    end)
-
-    local stCount = 0
-    local origStConnect
-    origStConnect = hookfunction(RunService.Stepped.Connect, function(self, fn)
-        stCount += 1
-        detectTechnique("RunService.Stepped loop")
-        log("LOOP", string.format("Nouvelle connexion Stepped (#%d)", stCount))
-        return origStConnect(self, fn)
-    end)
-    log("SPY", "✅ Hook RunService connections actif")
-else
-    log("SPY", "⚠️ hookfunction non dispo — hook RunService ignoré")
-end
-
--- ─── 9. COMMANDES CLAVIER ─────────────────────────────────
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-
-    -- F7 = Export log complet
-    if input.KeyCode == Enum.KeyCode.F7 then
-        local out = "=== VERTEX SPY LOG (" .. #LOG .. " entrées) ===\n"
-        out = out .. table.concat(LOG, "\n") .. "\n=== FIN LOG ==="
-        print(out)
-        if setclipboard then
-            setclipboard(out)
-            warn("[SPY] ✅ Log copié dans le presse-papier !")
+            -- Vérif Sign.TextLabel
+            local sign = first:FindFirstChild("Sign")
+            if sign then
+                log(OK, "Sign trouvé")
+                local tl = sign:FindFirstChild("TextLabel")
+                if tl then
+                    log(OK, "Sign.TextLabel trouvé — Text = '" .. tostring(tl.Text):sub(1,40) .. "'")
+                else
+                    log(ERR, "Sign.TextLabel introuvable")
+                    log(WRN, "Enfants de Sign:")
+                    for _, v in ipairs(sign:GetChildren()) do
+                        print("    → " .. v.Name .. " (" .. v.ClassName .. ")")
+                    end
+                end
+            else
+                log(ERR, "Sign introuvable dans " .. first.Name)
+            end
+        end
+    else
+        log(ERR, "BoothUI introuvable dans _boothlocation")
+        log(WRN, "Enfants de _boothlocation:")
+        for _, v in ipairs(_boothlocation:GetChildren()) do
+            print("    → " .. v.Name .. " (" .. v.ClassName .. ")")
         end
     end
-
-    -- F8 = Résumé des techniques
-    if input.KeyCode == Enum.KeyCode.F8 then
-        warn("\n╔═══ VERTEX SPY — RAPPORT FINAL ═══╗")
-        warn(string.format("║ Tweens CFrame       : %d", STATS.tweenMoves))
-        warn(string.format("║ CFrame directs      : %d  ← anti-rollback", STATS.directCframes))
-        warn(string.format("║ Velocity resets     : %d  ← bloque forces map", STATS.velocityReset))
-        warn(string.format("║ Noclip toggles      : %d", STATS.noclipToggles))
-        warn(string.format("║ firetouchinterest   : %d  ← collecte sans contact", STATS.touchFires))
-        warn(string.format("║ Gravity changes     : %d", STATS.gravityChange))
-        warn(string.format("║ Pièces collectées   : %d", STATS.coinCollected))
-        warn("╠═══════════════════════════════════╣")
-        warn("║ TECHNIQUES DÉTECTÉES :")
-        for tech, _ in pairs(TECHNIQUES) do
-            warn("║  → " .. tech)
-        end
-        warn("╚═══════════════════════════════════╝")
-    end
-end)
-
--- ─── INIT ─────────────────────────────────────────────────
-if Player.Character then
-    hookHRP(Player.Character)
-    monitorCanCollide(Player.Character)
+else
+    log(ERR, "Skip — _boothlocation nil")
 end
-Player.CharacterAdded:Connect(function(char)
-    task.wait(0.5)
-    hookHRP(char)
-    monitorCanCollide(char)
-end)
 
-warn("=== VERTEX MOVEMENT SPY v1.1 ACTIF ===")
-warn("Lance Vertex maintenant → F8 pour le rapport | F7 pour le log complet")
+-- ============================================================
+--  3. BOOTHINTERACTIONS
+-- ============================================================
+sep("BOOTHINTERACTIONS")
+
+local boothInteractions = workspace:FindFirstChild("BoothInteractions")
+if boothInteractions then
+    log(OK, "workspace.BoothInteractions trouvé")
+    local children = boothInteractions:GetChildren()
+    log(OK, "Nombre d'interactions: " .. #children)
+    if #children > 0 then
+        local first = children[1]
+        log(OK, "Premier enfant: " .. first.Name .. " (" .. first.ClassName .. ")")
+        local slot = first:GetAttribute("BoothSlot")
+        if slot then
+            log(OK, "Attribute 'BoothSlot' trouvé = " .. tostring(slot))
+        else
+            log(ERR, "Attribute 'BoothSlot' introuvable sur " .. first.Name)
+            log(WRN, "Attributes disponibles:")
+            for k, v in pairs(first:GetAttributes()) do
+                print("    → " .. k .. " = " .. tostring(v))
+            end
+        end
+    end
+else
+    log(ERR, "workspace.BoothInteractions introuvable")
+    log(WRN, "Enfants de workspace contenant 'Booth':")
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v.Name:lower():find("booth") then
+            print("    → " .. v.Name .. " (" .. v.ClassName .. ")")
+        end
+    end
+end
+
+-- ============================================================
+--  4. REMOTES
+-- ============================================================
+sep("REMOTES (ReplicatedStorage)")
+
+local Remotes = nil
+log(OK, "Scan de ReplicatedStorage...")
+for _, v in pairs(ReplicatedStorage:GetChildren()) do
+    print("    → " .. v.Name .. " (" .. v.ClassName .. ")")
+    if v.Name:find("Remote") and v:IsA("ModuleScript") then
+        log(OK, "ModuleScript contenant 'Remote' trouvé: " .. v.Name)
+        local ok, result = pcall(function() return require(v) end)
+        if ok and result then
+            log(OK, "require() OK")
+            Remotes = result
+
+            -- Test Event
+            local okEv, evResult = pcall(function() return result.Event end)
+            if okEv and evResult then
+                log(OK, "result.Event existe")
+
+                -- Test ClaimBooth
+                local okCB = pcall(function() return result.Event("ClaimBooth") end)
+                log(okCB and OK or ERR, "Event('ClaimBooth') " .. (okCB and "accessible" or "ERREUR"))
+
+                -- Test SetCustomization
+                local okSC = pcall(function() return result.Event("SetCustomization") end)
+                log(okSC and OK or ERR, "Event('SetCustomization') " .. (okSC and "accessible" or "ERREUR"))
+
+                -- Test SetAnonymousLive
+                local okAL = pcall(function() return result.Event("SetAnonymousLive") end)
+                log(okAL and OK or ERR, "Event('SetAnonymousLive') " .. (okAL and "accessible" or "ERREUR"))
+            else
+                log(ERR, "result.Event introuvable ou erreur")
+            end
+        else
+            log(ERR, "require() ECHEC: " .. tostring(result))
+        end
+    end
+end
+
+if not Remotes then
+    log(ERR, "FATAL: Aucun Remote ModuleScript trouvé — booth claim et text update impossibles")
+end
+
+-- ============================================================
+--  5. LEADERSTATS
+-- ============================================================
+sep("LEADERSTATS")
+
+local ls = player:FindFirstChild("leaderstats")
+if ls then
+    log(OK, "leaderstats trouvé")
+    local raised = ls:FindFirstChild("Raised")
+    if raised then
+        log(OK, "Raised trouvé — Value = " .. tostring(raised.Value))
+    else
+        log(ERR, "Raised introuvable dans leaderstats")
+        log(WRN, "Enfants de leaderstats:")
+        for _, v in ipairs(ls:GetChildren()) do
+            print("    → " .. v.Name .. " (" .. v.ClassName .. ") = " .. tostring(v.Value))
+        end
+    end
+else
+    log(ERR, "leaderstats introuvable sur le joueur")
+end
+
+-- ============================================================
+--  RÉSUMÉ
+-- ============================================================
+sep("RÉSUMÉ")
+log(_boothlocation and OK or ERR, "_boothlocation: " .. (_boothlocation and "OK" or "NIL"))
+log(boothUI and OK or ERR,        "BoothUI: " .. (boothUI and "OK" or "NIL"))
+log(boothInteractions and OK or ERR, "BoothInteractions: " .. (boothInteractions and "OK" or "NIL"))
+log(Remotes and OK or ERR,        "Remotes: " .. (Remotes and "OK" or "NIL"))
+print("\nDiagnostic terminé. Copie tout ce qui est affiché et envoie-le.")
