@@ -955,7 +955,9 @@ Players.PlayerAdded:Connect(bindPlayer)
 task.spawn(function()
     while true do
         task.wait(0.25)
-        if AutoGrabGunEnabled and isPlayerAlive() then
+        -- Ne pas grab si on est Murderer (on a deja le couteau, pas besoin du gun)
+        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
+        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
             local char = Player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
             -- On agit seulement si le joueur n'a pas encore le gun
