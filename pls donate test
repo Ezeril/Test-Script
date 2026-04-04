@@ -1,5 +1,5 @@
 -- ============================================================
---  COMET HUB (Pls Donate) - Full Feature Edition v3.0 [PATCHED]
+--  COMET HUB (Pls Donate) - Full Feature Edition v3.0
 -- ============================================================
 
 repeat task.wait() until game:IsLoaded()
@@ -8,12 +8,8 @@ if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
 if getgenv().loadedRR then return else getgenv().loadedRR = true end
 
-local guiParentCheck
-pcall(function() guiParentCheck = gethui and gethui() or game:GetService("CoreGui") end)
-if not guiParentCheck then guiParentCheck = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui") end
-
-if guiParentCheck:FindFirstChild("CometHub") then
-    guiParentCheck:FindFirstChild("CometHub"):Destroy()
+if game.CoreGui:FindFirstChild("CometHub") then
+    game.CoreGui:FindFirstChild("CometHub"):Destroy()
 end
 
 -- ============================================================
@@ -64,7 +60,7 @@ local sValues = {
     false,"✅ 1R$ = +1 SPIN SPEED ✅",false,"your text here","#ffffff",
     true,true,{"1R$ = +1 SPIN SPEED","Spinning for donations!"},300,
     60,false,3,false,false,false,false,3,"Front",false,false,false,
-    1,false,true,true,1,false,0,"New",false,"SciFi",5,false,false,false,
+    1,false,true,true,false,1,false,0,"New",false,"SciFi",5,false,false,false,
     {"Hi","Sup","Hello"},{"no im not","im not a bot"},
     {"sorry im saving","sorry my robux is pending"},
     {"..?","what","?"},
@@ -91,9 +87,8 @@ if pcall(function() return isfile end) and isfile("plsdonatesettings.txt") then
     end
 end
 
--- Type Validation Safeguard
 for i, v in ipairs(sNames) do
-    if getgenv().settings[v] == nil or type(getgenv().settings[v]) ~= type(sValues[i]) then
+    if getgenv().settings[v] == nil then
         getgenv().settings[v] = sValues[i]
     end
 end
@@ -122,7 +117,7 @@ local function showBanScreen(reason, date)
     gui.Name = "CometBanScreen"
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = guiParentCheck
+    gui.Parent = game.CoreGui
 
     local overlay = Instance.new("Frame", gui)
     overlay.Size = UDim2.new(1, 0, 1, 0)
@@ -152,8 +147,8 @@ local function showBanScreen(reason, date)
         RunService.Heartbeat:Connect(function(dt)
             rotation = (rotation + dt * 45) % 360
             grad.Rotation = rotation
-        end)
     end)
+end)
 
     local function lbl(text, posY, size, color, bold)
         local l = Instance.new("TextLabel", frame)
@@ -217,8 +212,8 @@ local function checkBanlist()
                 })
             end)
             pcall(function()
-                if guiParentCheck:FindFirstChild("CometHub") then
-                    guiParentCheck:FindFirstChild("CometHub"):Destroy()
+                if game.CoreGui:FindFirstChild("CometHub") then
+                    game.CoreGui:FindFirstChild("CometHub"):Destroy()
                 end
             end)
             showBanScreen(entry.reason, entry.date)
@@ -231,16 +226,7 @@ checkBanlist()
 
 local WEBHOOK_URL         = "https://discord.com/api/webhooks/1482752922281574661/Q--S5JRzNq7MUE-iGXLZ3Mc3OUTGXADW95467rEmt-AszoiIuXvMAIpYcp5ZdO2o314_"
 local queueonteleport     = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or nil
-local newRaisedFormat = nil
-task.spawn(function()
-    local leaderstats = player:WaitForChild("leaderstats")
-    newRaisedFormat = leaderstats:FindFirstChild("Raised")
-        or leaderstats:FindFirstChild("Donated")
-    if not newRaisedFormat then
-        newRaisedFormat = leaderstats:WaitForChild("Raised", 9999)
-            or leaderstats:WaitForChild("Donated", 9999)
-    end
-end)
+local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Raised")
 local Remotes
 for _, v in pairs(ReplicatedStorage:GetChildren()) do
     if v.Name:find("Remote") and v:IsA("ModuleScript") then
@@ -308,20 +294,8 @@ local function twn(obj, props, t, style, dir)
     tw:Play(); return tw
 end
 
--- Mobile & Codex Chat Safety Fix
-local _TCHANNEL
-pcall(function()
-    _TCHANNEL = TextChatService:WaitForChild("TextChannels", 5):WaitForChild("RBXGeneral", 5)
-end)
-local function chat(msg) 
-    pcall(function() 
-        if _TCHANNEL then 
-            _TCHANNEL:SendAsync(msg) 
-        else
-            game:GetService("ReplicatedStorage"):WaitForChild("DefaultChatSystemChatEvents"):WaitForChild("SayMessageRequest"):FireServer(msg, "All")
-        end
-    end) 
-end
+local _TCHANNEL = TextChatService.TextChannels.RBXGeneral
+local function chat(msg) pcall(function() _TCHANNEL:SendAsync(msg) end) end
 
 -- ============================================================
 --  BOOTH LOCATION
@@ -450,7 +424,7 @@ local function webhook(raised, donor)
             ["color"]       = 16777215,
             ["thumbnail"]   = { ["url"] = avatarUrl },
             ["fields"] = {
-                {["name"] = "👤 Donor",            ["value"] = "```diff\n- " .. donor                                    .. "\n```", ["inline"] = false},
+                {["name"] = "👤 Donor",           ["value"] = "```diff\n- " .. donor                                    .. "\n```", ["inline"] = false},
                 {["name"] = "💸 Amount Donated",  ["value"] = "```diff\n+ " .. tostring(raised)                         .. " R$\n```", ["inline"] = true},
                 {["name"] = "💰 After Tax (30%)", ["value"] = "```fix\n"    .. tostring(afterTax)                       .. " R$\n```", ["inline"] = true},
                 {["name"] = "🏆 Total Raised",    ["value"] = "```fix\n"    .. tostring(tonumber(newRaisedFormat.Value)) .. " R$\n```", ["inline"] = true}
@@ -650,11 +624,12 @@ end
 -- ============================================================
 --  SCREEN GUI & MAIN WINDOW
 -- ============================================================
+local guiParent = game:GetService("CoreGui")
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name            = "CometHub"
 ScreenGui.ResetOnSpawn    = false
 ScreenGui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent          = guiParentCheck -- CODEX COMPAT FIX
+ScreenGui.Parent          = guiParent
 
 local Win = Instance.new("Frame",ScreenGui)
 Win.Name              = "MainWindow"
@@ -703,24 +678,24 @@ Logo.ImageColor3          = C.accent
 Logo.ZIndex               = 3
 
 local TopTitle = Instance.new("TextLabel",TopBar)
-TopTitle.Position         = UDim2.new(0,48,0,5)
-TopTitle.Size             = UDim2.new(0,300,0,20)
+TopTitle.Position          = UDim2.new(0,48,0,5)
+TopTitle.Size              = UDim2.new(0,300,0,20)
 TopTitle.BackgroundTransparency = 1
-TopTitle.Text             = "Comet Hub  —  Full Feature Edition"
-TopTitle.TextColor3       = C.white
-TopTitle.Font             = Enum.Font.GothamBold
-TopTitle.TextSize         = 14
-TopTitle.TextXAlignment   = Enum.TextXAlignment.Left
+TopTitle.Text              = "Comet Hub  —  Full Feature Edition"
+TopTitle.TextColor3        = C.white
+TopTitle.Font              = Enum.Font.GothamBold
+TopTitle.TextSize          = 14
+TopTitle.TextXAlignment    = Enum.TextXAlignment.Left
 
 local TopSub = Instance.new("TextLabel",TopBar)
-TopSub.Position           = UDim2.new(0,48,0,26)
-TopSub.Size               = UDim2.new(0,300,0,14)
+TopSub.Position            = UDim2.new(0,48,0,26)
+TopSub.Size                = UDim2.new(0,300,0,14)
 TopSub.BackgroundTransparency = 1
-TopSub.Text               = "Pls Donate  •  RightShift / F8 to toggle"
-TopSub.TextColor3         = C.subtext
-TopSub.Font               = Enum.Font.Gotham
-TopSub.TextSize           = 11
-TopSub.TextXAlignment     = Enum.TextXAlignment.Left
+TopSub.Text                = "Pls Donate  •  RightShift / F8 to toggle"
+TopSub.TextColor3          = C.subtext
+TopSub.Font                = Enum.Font.Gotham
+TopSub.TextSize            = 11
+TopSub.TextXAlignment      = Enum.TextXAlignment.Left
 
 local CloseBtn = Instance.new("TextButton",TopBar)
 CloseBtn.Size             = UDim2.new(0,28,0,28)
@@ -1571,12 +1546,8 @@ task.spawn(function()
     task.spawn(checkForBots)
 
     task.spawn(function()
-        -- FIX XENO INFINITE LOOP: Wait for Booth UI to load before checking and hopping
-        if not _boothlocation then 
-            task.wait(5)
-            _boothlocation = workspace:FindFirstChild("MapUI") or (player:FindFirstChild("PlayerGui") and player.PlayerGui:FindFirstChild("MapUIContainer") and player.PlayerGui.MapUIContainer:FindFirstChild("MapUI"))
-            if not _boothlocation then return serverHop() end 
-        end
+        if not _boothlocation then return serverHop() end
+        if not Remotes then return end
 
         local function findUnclaimed()
             unclaimed = {}
@@ -1853,7 +1824,7 @@ task.spawn(function()
                 if rv > raisedV then raisedV = rv end
             end
         end
-        if raisedV < getgenv().settings.minimumDonated then
+        if raisedV < (tonumber(getgenv().settings.minimumDonated) or 0) then
             serverHop()
         end
     end)
