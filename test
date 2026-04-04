@@ -221,7 +221,11 @@ if ls then
 else
     log(ERR, "leaderstats introuvable sur le joueur")
 end
--- Cherche dans tous les enfants du player
+-- ============================================================
+--  6. RECHERCHE RAISED
+-- ============================================================
+sep("RECHERCHE RAISED")
+
 for _, v in ipairs(player:GetChildren()) do
     print(v.Name .. " (" .. v.ClassName .. ")")
     if v:IsA("Folder") or v:IsA("Configuration") then
