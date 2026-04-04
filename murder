@@ -170,7 +170,6 @@ local AutofarmIN         = false
 local AntiAfkState       = false
 local ImproveFPSenabled  = false
 local ResetWhenFullBag   = false
-local AutoGrabGunEnabled = false
 local CurrentCoinType    = "Searching..."
 local autofarmstopevent  = Instance.new("BindableEvent")
 local IsParticipating    = false
@@ -181,6 +180,7 @@ local Rendering3DEnabled = false
 local NameESPEnabled     = false
 local AutoEmoteEnabled   = false
 local AntiFlingEnabled   = false
+local AutoGrabGunEnabled = false
 
 local RoleColorMap    = {}
 local LocalRole       = nil
@@ -649,7 +649,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
         optBtn.Size = UDim2.new(1, 0, 0, 30)
         optBtn.BackgroundColor3 = C.card
         optBtn.BackgroundTransparency = 0.5
-        optBtn.Text = "       " .. opt.name
+        optBtn.Text = "      " .. opt.name
         optBtn.TextColor3 = C.subtext
         optBtn.Font = Enum.Font.Gotham
         optBtn.TextSize = 12
@@ -685,10 +685,6 @@ end)
 
 makeToggle(autoPage, "Reset When Bag Full", 2, function(_, state)
     ResetWhenFullBag = state
-end)
-
-makeToggle(autoPage, "Auto Grab Gun", 3, function(_, state)
-    AutoGrabGunEnabled = state
 end)
 
 -- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
@@ -843,6 +839,12 @@ makeToggle(miscPage, "Anti-Fling (Ghost Mode)", 3, function(_, state)
     AntiFlingEnabled = state
 end)
 
+sectionLabel(miscPage, "WEAPONS", 3.5)
+
+makeToggle(miscPage, "Auto Grab Gun", 3.6, function(_, state)
+    AutoGrabGunEnabled = state
+end)
+
 sectionLabel(miscPage, "EMOTES", 4)
 local EmoteData = {
     { name = "Zen",      command = "zen"      },
@@ -949,6 +951,37 @@ end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
 
+-- ─── AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) ─────
+task.spawn(function()
+    while true do
+        task.wait(0.25)
+        if AutoGrabGunEnabled and isPlayerAlive() then
+            local char = Player.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            -- On agit seulement si le joueur n'a pas encore le gun
+            if hrp and not char:FindFirstChild("Gun") then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                        -- Methode Vertex : on teleporte le GunDrop sur le joueur (pas le joueur sur le gun)
+                        pcall(function()
+                            obj.CFrame = hrp.CFrame
+                        end)
+                        -- Fallback firetouchinterest (Synapse X / Wave / Fluxus supportent ca)
+                        if firetouchinterest then
+                            pcall(function()
+                                firetouchinterest(hrp, obj, 0)
+                                task.wait(0.05)
+                                firetouchinterest(hrp, obj, 1)
+                            end)
+                        end
+                        break -- on prend le premier GunDrop trouve
+                    end
+                end
+            end
+        end
+    end
+end)
+
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -962,35 +995,6 @@ task.spawn(function()
         if PlayerChamsEnabled then
             task.spawn(fetchAllRoles)
             refreshAllChams()
-        end
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        if AutoGrabGunEnabled and isPlayerAlive() then
-            local char = Player.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp and LocalRole ~= "Murderer" then 
-                local gunDrop = nil
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj.Name == "GunDrop" and obj:IsA("BasePart") and obj:FindFirstChild("TouchInterest") then
-                        gunDrop = obj
-                        break
-                    end
-                end
-                if gunDrop then
-                    if firetouchinterest then
-                        firetouchinterest(hrp, gunDrop, 0)
-                        task.wait(0.05)
-                        firetouchinterest(hrp, gunDrop, 1)
-                    else
-                        gunDrop.CFrame = hrp.CFrame
-                    end
-                    task.wait(1) 
-                end
-            end
         end
     end
 end)
