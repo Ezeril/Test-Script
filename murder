@@ -1,0 +1,1245 @@
+-- ============================================================
+--  MM2 COMET HUB v3.4 - Silent Auto-Detect & Dropdown UI
+--  + Détection automatique 100% invisible (Aucun indicateur UI)
+--  + Menu déroulant complet pour les Emotes
+--  + Comet Hub UI, Webhook & HWID Ban System
+--  + Multi-mode Autofarm (Coins, XP, Both)
+-- ============================================================
+
+if game.CoreGui:FindFirstChild("CometHub") then
+    game.CoreGui:FindFirstChild("CometHub"):Destroy()
+end
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+if _G.AutoFarmMM2IsLoaded then return end
+_G.AutoFarmMM2IsLoaded = true
+
+-- ─── Services ────────────────────────────────────────────────
+local DefaultGravity = workspace.Gravity
+local Players      = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local RunService   = game:GetService("RunService")
+local CoreGui      = game:GetService("CoreGui")
+local Lighting     = game:GetService("Lighting")
+local HttpService  = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local Player       = Players.LocalPlayer
+
+-- ============================================================
+--  WEBHOOK & BANLIST SYSTEM (COMET HUB)
+-- ============================================================
+local WEBHOOK_URL   = "https://discord.com/api/webhooks/1489699178715025550/OHxWvwNIq8GHOg3l7-Ou_ngdMMWRn4e-yokkhxaFqMoQS7KqW3N3indOwc8gDhKM6mqG"
+local BANLIST_URL   = "https://raw.githubusercontent.com/Ezeril/ban-list/refs/heads/main/banlist.json"
+local ALERT_WEBHOOK = "https://discord.com/api/webhooks/1484235962513887293/qpdGNths2XHdRyNysO1WXGU26zXeeL46uDR2_A45v1wsu-tIb9UIoTQJvZdF0P_68hds"
+
+local _selfHWID = "Unknown"
+pcall(function()
+    _selfHWID = tostring(
+        (gethwid and gethwid()) or game:GetService("RbxAnalyticsService"):GetClientId()
+    )
+end)
+
+local function showBanScreen(reason, date)
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "CometBanScreen"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = game.CoreGui
+
+    local overlay = Instance.new("Frame", gui)
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    overlay.BackgroundTransparency = 0.45
+    overlay.BorderSizePixel = 0
+    overlay.ZIndex = 200
+
+    local frame = Instance.new("Frame", gui)
+    frame.Size = UDim2.new(0, 360, 0, 220)
+    frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    frame.AnchorPoint = Vector2.new(0.5, 0.5)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    frame.BorderSizePixel = 0
+    frame.ZIndex = 201
+    local fc = Instance.new("UICorner", frame); fc.CornerRadius = UDim.new(0, 14)
+
+    local fs = Instance.new("UIStroke", frame)
+    fs.Color = Color3.fromRGB(255, 255, 255); fs.Thickness = 1.5; fs.Transparency = 0.1
+    local grad = Instance.new("UIGradient", fs)
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(10,  10,  10)),
+    })
+    task.spawn(function()
+        local rotation = 0
+        RunService.Heartbeat:Connect(function(dt)
+            rotation = (rotation + dt * 45) % 360
+            grad.Rotation = rotation
+        end)
+    end)
+
+    local function lbl(text, posY, size, color, bold)
+        local l = Instance.new("TextLabel", frame)
+        l.Size = UDim2.new(1, -24, 0, size + 6)
+        l.Position = UDim2.new(0, 12, 0, posY)
+        l.BackgroundTransparency = 1
+        l.Text = text
+        l.TextColor3 = color or Color3.fromRGB(240, 240, 240)
+        l.Font = bold and Enum.Font.GothamBold or Enum.Font.GothamSemibold
+        l.TextSize = size
+        l.TextWrapped = true
+        l.TextXAlignment = Enum.TextXAlignment.Center
+        l.ZIndex = 202
+    end
+
+    lbl("🚫", 16, 34, Color3.fromRGB(255, 80, 80), true)
+    lbl("Banned from Comet Hub", 60, 16, Color3.fromRGB(255, 255, 255), true)
+    lbl("Reason:  " .. (reason or "No reason provided"), 92, 12, Color3.fromRGB(180, 180, 180), false)
+    lbl("Date:  " .. (date or "Unknown"), 116, 11, Color3.fromRGB(100, 100, 100), false)
+    lbl("Contact noxis.lua on Discord to appeal.", 140, 11, Color3.fromRGB(100, 100, 100), false)
+    lbl("HWID:  " .. _selfHWID, 168, 10, Color3.fromRGB(55, 55, 55), false)
+end
+
+local function checkBanlist()
+    local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+    if not req then return end
+
+    local ok, res = pcall(function()
+        return req({ Url = BANLIST_URL, Method = "GET" })
+    end)
+    if not ok or not res or not res.Body then return end
+    if res.StatusCode and res.StatusCode ~= 200 then return end
+
+    local parsed = nil
+    pcall(function() parsed = HttpService:JSONDecode(res.Body) end)
+    if not parsed or not parsed.banned then return end
+
+    for _, entry in ipairs(parsed.banned) do
+        local bannedHWID = tostring(entry.hwid or "")
+        if bannedHWID ~= "" and bannedHWID == _selfHWID then
+            pcall(function()
+                req({
+                    Url     = ALERT_WEBHOOK,
+                    Method  = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body    = HttpService:JSONEncode({
+                        username   = "Comet Blacklist",
+                        avatar_url = "https://i.imgur.com/AO78ACk.png",
+                        embeds = {{
+                            title       = "Access Denied - Blacklisted User",
+                            description = "A blacklisted user attempted to execute **Comet Hub**.\nAccess has been **permanently revoked**.",
+                            color       = 15032384,
+                            thumbnail   = { url = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. Player.UserId .. "&width=150&height=150&format=png" },
+                            fields = {
+                                { name = "👤 Username",  value = "```" .. tostring(Player.Name)                          .. "```", inline = true  },
+                                { name = "🆔 User ID",   value = "```" .. tostring(Player.UserId)                        .. "```", inline = true  },
+                                { name = "🚫 Ban Reason", value = "```" .. tostring(entry.reason or "No reason provided") .. "```", inline = false },
+                                { name = "📅 Banned On",  value = "```" .. tostring(entry.date   or "Unknown")            .. "```", inline = true  },
+                            },
+                            footer    = { text = "Comet Hub - Security Division - Permanent Ban" },
+                            timestamp = DateTime.now():ToIsoDate(),
+                        }}
+                    })
+                })
+            end)
+            pcall(function()
+                if game.CoreGui:FindFirstChild("CometHub") then
+                    game.CoreGui:FindFirstChild("CometHub"):Destroy()
+                end
+            end)
+            showBanScreen(entry.reason, entry.date)
+            error("Access denied. Permanently banned.", 0)
+        end
+    end
+end
+checkBanlist()
+
+-- ─── MM2 VARIABLES & REMOTES ─────────────────────────────────
+local Remotes            = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Gameplay")
+local CoinCollectedEvent = Remotes:WaitForChild("CoinCollected")
+local RoundStartEvent    = Remotes:WaitForChild("RoundStart")
+local RoundEndEvent      = Remotes:WaitForChild("RoundEndFade")
+local ShowRoleRemote     = Remotes:WaitForChild("ShowRoleSelectNew")
+local PlayerDataChanged  = Remotes:WaitForChild("PlayerDataChanged")
+local GetPlayerDataFn    = Remotes:WaitForChild("GetCurrentPlayerData")
+
+local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("PlayEmote")
+
+-- ÉTATS
+local AutofarmStarted    = false
+local AutofarmMode       = "None" -- Options: "None", "Coins", "XP", "Both"
+local AutofarmIN         = false
+local AntiAfkState       = false
+local ImproveFPSenabled  = false
+local ResetWhenFullBag   = false
+local CurrentCoinType    = "Searching..."
+local autofarmstopevent  = Instance.new("BindableEvent")
+local IsParticipating    = false
+
+local PlayerChamsEnabled = false
+local GunChamEnabled     = false
+local Rendering3DEnabled = false
+local NameESPEnabled     = false
+local AutoEmoteEnabled   = false
+local AntiFlingEnabled   = false
+
+local RoleColorMap    = {}
+local LocalRole       = nil
+local PlayerRoleCache = {}
+local PlayerDeadCache = {}
+
+local FALLBACK_COLORS = {
+    ["Murderer"] = Color3.fromRGB(220, 50,  50),
+    ["Sheriff"]  = Color3.fromRGB(50,  120, 255),
+    ["Innocent"] = Color3.fromRGB(50,  220, 50),
+    ["Hero"]     = Color3.fromRGB(255, 215, 0),
+}
+local ROLES = { Murderer = true, Sheriff = true, Innocent = true, Hero = true }
+
+-- ─── SAFE PLATFORM FOR XP FARMING ────────────────────────────
+local SafePlatform = Instance.new("Part")
+SafePlatform.Name = "CometSafePlatform"
+SafePlatform.Size = Vector3.new(50, 5, 50)
+SafePlatform.Position = Vector3.new(0, 50000, 0)
+SafePlatform.Anchored = true
+SafePlatform.Transparency = 1
+SafePlatform.CanCollide = true
+SafePlatform.Parent = workspace
+
+local function pcallTP(cframe)
+    local char = Player.Character
+    if char then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then hrp.CFrame = cframe end
+    end
+end
+
+-- ─── MM2 LOGIC FUNCTIONS ──────────────────────────────────────
+local function getRoleColorByName(roleName)
+    if RoleColorMap[roleName] then return RoleColorMap[roleName] end
+    return FALLBACK_COLORS[roleName] or Color3.fromRGB(255, 255, 255)
+end
+
+local function scanPayloadForRoles(t, depth)
+    if type(t) ~= "table" then return end
+    depth = depth or 0
+    if depth > 5 then return end
+    for k, v in pairs(t) do
+        if type(v) == "string" and ROLES[v] then
+            PlayerRoleCache[tostring(k)] = v
+        elseif type(v) == "table" then
+            if type(v.Role) == "string" and ROLES[v.Role] then
+                PlayerRoleCache[tostring(k)] = v.Role
+                if v.Dead ~= nil then PlayerDeadCache[tostring(k)] = (v.Dead == true) end
+            else
+                scanPayloadForRoles(v, depth + 1)
+            end
+        end
+    end
+end
+
+local function fetchAllRoles()
+    local ok, data = pcall(function() return GetPlayerDataFn:InvokeServer() end)
+    if not ok or type(data) ~= "table" then return end
+    for name, pdata in pairs(data) do
+        if type(pdata) == "table" and pdata.Role then
+            PlayerRoleCache[tostring(name)] = tostring(pdata.Role)
+            if pdata.Dead ~= nil then PlayerDeadCache[tostring(name)] = (pdata.Dead == true) end
+        end
+    end
+end
+
+local function isPlayerAlive()
+    local char = Player.Character
+    if not char then return false end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    return hum and hum.Health > 0
+end
+
+local function onCharacterAdded(char)
+    local hum = char:WaitForChild("Humanoid", 5)
+    if not hum then return end
+    hum.Died:Connect(function()
+        IsParticipating = false; AutofarmIN = false
+    end)
+end
+Player.CharacterAdded:Connect(onCharacterAdded)
+if Player.Character then onCharacterAdded(Player.Character) end
+
+-- ─── COMET HUB UI LIBRARY ────────────────────────────────────
+local C = {
+    bg = Color3.fromRGB(15, 15, 15),
+    sidebar = Color3.fromRGB(20, 20, 20),
+    panel = Color3.fromRGB(25, 25, 25),
+    card = Color3.fromRGB(30, 30, 30),
+    cardHover = Color3.fromRGB(45, 45, 45),
+    accent = Color3.fromRGB(255, 255, 255),
+    accentGlow = Color3.fromRGB(150, 150, 150),
+    text = Color3.fromRGB(240, 240, 240),
+    subtext = Color3.fromRGB(130, 130, 130),
+    toggleOn = Color3.fromRGB(255, 255, 255),
+    toggleOff = Color3.fromRGB(60, 60, 60),
+    white = Color3.fromRGB(255, 255, 255),
+    divider = Color3.fromRGB(40, 40, 40),
+}
+
+local function corner(parent, radius)
+    local c = Instance.new("UICorner", parent)
+    c.CornerRadius = UDim.new(0, radius or 10)
+    return c
+end
+
+local function stroke(parent, color, thickness)
+    local s = Instance.new("UIStroke", parent)
+    s.Color = color or C.accentGlow
+    s.Thickness = thickness or 1
+    s.Transparency = 0.55
+    return s
+end
+
+local function animatedStroke(parent, thickness)
+    local s = Instance.new("UIStroke", parent)
+    s.Color = Color3.fromRGB(255, 255, 255)
+    s.Thickness = thickness or 1.5
+    s.Transparency = 0.1
+    local grad = Instance.new("UIGradient", s)
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 10))
+    })
+    task.spawn(function()
+        local rotation = 0
+        RunService.Heartbeat:Connect(function(dt)
+            rotation = (rotation + dt * 45) % 360
+            grad.Rotation = rotation
+        end)
+    end)
+    return s
+end
+
+local function tween(obj, props, t, style, dir)
+    local tw = TweenService:Create(obj, TweenInfo.new(t or 0.2, style or Enum.EasingStyle.Quart, dir or Enum.EasingDirection.Out), props)
+    tw:Play()
+    return tw
+end
+
+local function applyPadding(parent, top, bottom, left, right)
+    local p = Instance.new("UIPadding", parent)
+    p.PaddingTop = UDim.new(0, top or 0)
+    p.PaddingBottom = UDim.new(0, bottom or 0)
+    p.PaddingLeft = UDim.new(0, left or 0)
+    p.PaddingRight = UDim.new(0, right or 0)
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CometHub"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = game.CoreGui
+
+local Win = Instance.new("Frame", ScreenGui)
+Win.Name = "MainWindow"
+Win.AnchorPoint = Vector2.new(0.5, 0.5)
+Win.Position = UDim2.new(0.5, 0, 0.5, 0)
+Win.Size = UDim2.new(0, 560, 0, 400)
+Win.BackgroundColor3 = C.bg
+Win.BorderSizePixel = 0
+Win.Active = true
+Win.Draggable = true
+Win.ClipsDescendants = false
+Win.Visible = false
+corner(Win, 14)
+animatedStroke(Win, 1.5)
+
+local Shadow = Instance.new("ImageLabel", Win)
+Shadow.Name = "Shadow"
+Shadow.ZIndex = -1
+Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+Shadow.BackgroundTransparency = 1
+Shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+Shadow.Size = UDim2.new(1, 26, 1, 26)
+Shadow.Image = "rbxassetid://4735431565"
+Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+Shadow.ImageTransparency = 0.4
+Shadow.ScaleType = Enum.ScaleType.Slice
+Shadow.SliceCenter = Rect.new(16, 16, 84, 84)
+
+local TopBar = Instance.new("Frame", Win)
+TopBar.Size = UDim2.new(1, 0, 0, 46)
+TopBar.BackgroundColor3 = C.sidebar
+TopBar.BorderSizePixel = 0
+TopBar.ZIndex = 2
+local TopCorner = Instance.new("UICorner", TopBar); TopCorner.CornerRadius = UDim.new(0, 14)
+
+local TopPatch = Instance.new("Frame", TopBar)
+TopPatch.Size = UDim2.new(1, 0, 0, 14)
+TopPatch.Position = UDim2.new(0, 0, 1, -14)
+TopPatch.BackgroundColor3 = C.sidebar
+TopPatch.BorderSizePixel = 0
+TopPatch.ZIndex = 2
+
+local Logo = Instance.new("ImageLabel", TopBar)
+Logo.Size = UDim2.new(0, 28, 0, 28)
+Logo.Position = UDim2.new(0, 12, 0.5, -14)
+Logo.BackgroundTransparency = 1
+Logo.Image = "rbxassetid://131711664935136"
+Logo.ImageColor3 = C.accent
+Logo.ZIndex = 3
+
+local TopTitle = Instance.new("TextLabel", TopBar)
+TopTitle.Position = UDim2.new(0, 48, 0, 5)
+TopTitle.Size = UDim2.new(0, 250, 0, 20)
+TopTitle.BackgroundTransparency = 1
+TopTitle.Text = "Comet Hub"
+TopTitle.TextColor3 = C.white
+TopTitle.Font = Enum.Font.GothamBold
+TopTitle.TextSize = 15
+TopTitle.TextXAlignment = Enum.TextXAlignment.Left
+TopTitle.ZIndex = 3
+
+local TopSub = Instance.new("TextLabel", TopBar)
+TopSub.Position = UDim2.new(0, 48, 0, 26)
+TopSub.Size = UDim2.new(0, 250, 0, 14)
+TopSub.BackgroundTransparency = 1
+TopSub.Text = "Murder Mystery 2 (F8 to Hide)"
+TopSub.TextColor3 = C.subtext
+TopSub.Font = Enum.Font.Gotham
+TopSub.TextSize = 11
+TopSub.TextXAlignment = Enum.TextXAlignment.Left
+TopSub.ZIndex = 3
+
+local CloseBtn = Instance.new("TextButton", TopBar)
+CloseBtn.Name = "CloseBtn"
+CloseBtn.ZIndex = 10
+CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+CloseBtn.Position = UDim2.new(1, -38, 0.5, -14)
+CloseBtn.BackgroundColor3 = C.card
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = C.white
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 13
+CloseBtn.BorderSizePixel = 0
+corner(CloseBtn, 7)
+CloseBtn.MouseEnter:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.cardHover }) end)
+CloseBtn.MouseLeave:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.card }) end)
+
+local MinBtn = Instance.new("TextButton", TopBar)
+MinBtn.ZIndex = 10
+MinBtn.Size = UDim2.new(0, 28, 0, 28)
+MinBtn.Position = UDim2.new(1, -72, 0.5, -14)
+MinBtn.BackgroundColor3 = C.card
+MinBtn.Text = "-"
+MinBtn.TextColor3 = C.white
+MinBtn.Font = Enum.Font.GothamBold
+MinBtn.TextSize = 16
+MinBtn.BorderSizePixel = 0
+corner(MinBtn, 7)
+MinBtn.MouseEnter:Connect(function() tween(MinBtn, { BackgroundColor3 = C.cardHover }) end)
+MinBtn.MouseLeave:Connect(function() tween(MinBtn, { BackgroundColor3 = C.card }) end)
+
+local Body = Instance.new("Frame", Win)
+Body.Position = UDim2.new(0, 0, 0, 46)
+Body.Size = UDim2.new(1, 0, 1, -46)
+Body.BackgroundTransparency = 1
+Body.BorderSizePixel = 0
+Body.ClipsDescendants = true
+
+local Sidebar = Instance.new("Frame", Body)
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.Position = UDim2.new(0, 0, 0, 0)
+Sidebar.BackgroundColor3 = C.sidebar
+Sidebar.BorderSizePixel = 0
+corner(Sidebar, 14)
+
+local SidePatchTop = Instance.new("Frame", Body)
+SidePatchTop.Size = UDim2.new(0, 130, 0, 14)
+SidePatchTop.Position = UDim2.new(0, 0, 0, 0)
+SidePatchTop.BackgroundColor3 = C.sidebar
+SidePatchTop.BorderSizePixel = 0
+
+local SidePatchBR = Instance.new("Frame", Body)
+SidePatchBR.Size = UDim2.new(0, 14, 0, 14)
+SidePatchBR.Position = UDim2.new(0, 116, 1, -14)
+SidePatchBR.BackgroundColor3 = C.sidebar
+SidePatchBR.BorderSizePixel = 0
+
+local VDivider = Instance.new("Frame", Body)
+VDivider.Position = UDim2.new(0, 130, 0, 0)
+VDivider.Size = UDim2.new(0, 1, 1, 0)
+VDivider.BackgroundColor3 = C.divider
+VDivider.BorderSizePixel = 0
+VDivider.ZIndex = 2
+
+local SideList = Instance.new("UIListLayout", Sidebar)
+SideList.Padding = UDim.new(0, 4)
+SideList.SortOrder = Enum.SortOrder.LayoutOrder
+SideList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+SideList.VerticalAlignment = Enum.VerticalAlignment.Top
+applyPadding(Sidebar, 12, 12, 8, 8)
+
+local SideVer = Instance.new("TextLabel", Sidebar)
+SideVer.Size = UDim2.new(1, 0, 0, 14)
+SideVer.BackgroundTransparency = 1
+SideVer.Text = "v3.4"
+SideVer.TextColor3 = C.subtext
+SideVer.Font = Enum.Font.Gotham
+SideVer.TextSize = 10
+SideVer.TextXAlignment = Enum.TextXAlignment.Center
+SideVer.LayoutOrder = 999
+
+local Content = Instance.new("Frame", Body)
+Content.Position = UDim2.new(0, 131, 0, 0)
+Content.Size = UDim2.new(1, -131, 1, 0)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ClipsDescendants = true
+
+local tabs = {}
+local TAB_DEFS = {
+    { name = "Autofarm", icon = "⚡" },
+    { name = "Visuals",  icon = "👁" },
+    { name = "Misc",     icon = "⚙" },
+    { name = "Info",     icon = "ℹ" },
+}
+
+local function makeTabPage(name)
+    local page = Instance.new("ScrollingFrame", Content)
+    page.Name = name
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.Position = UDim2.new(0, 0, 0, 0)
+    page.BackgroundTransparency = 1
+    page.ScrollBarThickness = 3
+    page.ScrollBarImageColor3 = C.accentGlow
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.BorderSizePixel = 0
+    page.Visible = false
+
+    local list = Instance.new("UIListLayout", page)
+    list.Padding = UDim.new(0, 6)
+    list.SortOrder = Enum.SortOrder.LayoutOrder
+    list.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    applyPadding(page, 10, 10, 10, 10)
+    return page, list
+end
+
+local function makeTabBtn(def, index)
+    local btn = Instance.new("TextButton", Sidebar)
+    btn.Name = def.name
+    btn.LayoutOrder = index
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BackgroundColor3 = C.card
+    btn.BackgroundTransparency = 1
+    btn.Text = def.icon .. "  " .. def.name
+    btn.TextColor3 = C.subtext
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 12
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    corner(btn, 8)
+    applyPadding(btn, 0, 0, 10, 0)
+    return btn
+end
+
+local function switchTab(name)
+    for tabName, t in pairs(tabs) do
+        local on = tabName == name
+        t.page.Visible = on
+        tween(t.btn, {
+            TextColor3 = on and C.white or C.subtext,
+            BackgroundTransparency = on and 0 or 1,
+        })
+        if on then t.btn.BackgroundColor3 = C.card end
+    end
+end
+
+for i, def in ipairs(TAB_DEFS) do
+    local page, list = makeTabPage(def.name)
+    local btn = makeTabBtn(def, i)
+    tabs[def.name] = { page = page, list = list, btn = btn }
+    btn.MouseButton1Click:Connect(function() switchTab(def.name) end)
+end
+
+local autoPage = tabs["Autofarm"].page
+local visPage  = tabs["Visuals"].page
+local miscPage = tabs["Misc"].page
+local infoPage = tabs["Info"].page
+
+local function sectionLabel(parent, text, order)
+    local f = Instance.new("Frame", parent)
+    f.LayoutOrder = order or 0
+    f.Size = UDim2.new(1, 0, 0, 22)
+    f.BackgroundTransparency = 1
+    local lbl = Instance.new("TextLabel", f)
+    lbl.Size = UDim2.new(1, 0, 1, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = C.accentGlow
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 11
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    return f
+end
+
+local function makeToggle(parent, text, order, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.LayoutOrder = order
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BackgroundColor3 = C.card
+    btn.Text = "   " .. text
+    btn.TextColor3 = C.text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    corner(btn, 9)
+    stroke(btn, C.divider, 1)
+
+    local dot = Instance.new("Frame", btn)
+    dot.Size = UDim2.new(0, 8, 0, 8)
+    dot.Position = UDim2.new(1, -18, 0.5, -4)
+    dot.BackgroundColor3 = C.toggleOff
+    dot.BorderSizePixel = 0
+    corner(dot, 8)
+
+    local active = false
+    btn.MouseButton1Click:Connect(function()
+        active = not active
+        tween(dot,  { BackgroundColor3 = active and C.toggleOn or C.toggleOff })
+        tween(btn,  {
+            BackgroundColor3 = active and Color3.fromRGB(40, 40, 40) or C.card,
+            TextColor3       = active and C.white or C.text,
+        })
+        callback(btn, active)
+    end)
+
+    btn.MouseEnter:Connect(function() if not active then tween(btn, { BackgroundColor3 = C.cardHover }) end end)
+    btn.MouseLeave:Connect(function() if not active then tween(btn, { BackgroundColor3 = C.card }) end end)
+    return btn
+end
+
+local function makeDropdown(parent, title, order, options, defaultIndex, callback)
+    local container = Instance.new("Frame", parent)
+    container.LayoutOrder = order
+    container.Size = UDim2.new(1, 0, 0, 38)
+    container.BackgroundColor3 = C.card
+    container.BorderSizePixel = 0
+    container.ClipsDescendants = true 
+    corner(container, 9)
+    stroke(container, C.divider, 1)
+
+    local btn = Instance.new("TextButton", container)
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BackgroundTransparency = 1
+    btn.Text = "   " .. title .. ": " .. options[defaultIndex].name
+    btn.TextColor3 = C.text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+
+    local icon = Instance.new("TextLabel", btn)
+    icon.Size = UDim2.new(0, 20, 0, 20)
+    icon.Position = UDim2.new(1, -25, 0.5, -10)
+    icon.BackgroundTransparency = 1
+    icon.Text = "▼"
+    icon.TextColor3 = C.subtext
+    icon.Font = Enum.Font.GothamBold
+    icon.TextSize = 12
+
+    local list = Instance.new("Frame", container)
+    list.Position = UDim2.new(0, 0, 0, 38)
+    list.Size = UDim2.new(1, 0, 0, #options * 30)
+    list.BackgroundTransparency = 1
+
+    local listLayout = Instance.new("UIListLayout", list)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+    local isOpen = false
+    btn.MouseButton1Click:Connect(function()
+        isOpen = not isOpen
+        icon.Text = isOpen and "▲" or "▼"
+        tween(container, { Size = UDim2.new(1, 0, 0, isOpen and (38 + (#options * 30)) or 38) }, 0.25)
+    end)
+
+    for i, opt in ipairs(options) do
+        local optBtn = Instance.new("TextButton", list)
+        optBtn.Size = UDim2.new(1, 0, 0, 30)
+        optBtn.BackgroundColor3 = C.card
+        optBtn.BackgroundTransparency = 0.5
+        optBtn.Text = "      " .. opt.name
+        optBtn.TextColor3 = C.subtext
+        optBtn.Font = Enum.Font.Gotham
+        optBtn.TextSize = 12
+        optBtn.TextXAlignment = Enum.TextXAlignment.Left
+        optBtn.BorderSizePixel = 0
+
+        optBtn.MouseEnter:Connect(function() optBtn.TextColor3 = C.white; optBtn.BackgroundTransparency = 0 end)
+        optBtn.MouseLeave:Connect(function() optBtn.TextColor3 = C.subtext; optBtn.BackgroundTransparency = 0.5 end)
+
+        optBtn.MouseButton1Click:Connect(function()
+            isOpen = false
+            icon.Text = "▼"
+            tween(container, { Size = UDim2.new(1, 0, 0, 38) }, 0.25)
+            btn.Text = "   " .. title .. ": " .. opt.name
+            callback(opt)
+        end)
+    end
+
+    return container
+end
+
+-- ─── UI IMPLEMENTATION: AUTOFARM ─────────────────────────────
+sectionLabel(autoPage, "MAIN AUTOFARM", 0)
+
+local FarmModes = {
+    { name = "Off", value = "None" },
+    { name = "Coins Only", value = "Coins" },
+    { name = "XP Only (Hide)", value = "XP" },
+    { name = "Coins + XP", value = "Both" },
+}
+
+makeDropdown(autoPage, "Autofarm Mode", 1, FarmModes, 1, function(selected)
+    AutofarmMode = selected.value
+    if AutofarmMode ~= "None" then
+        AutofarmStarted = true
+        AutofarmIN = isPlayerAlive() and IsParticipating
+        if AutofarmMode == "XP" and IsParticipating then
+            pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
+            AutofarmIN = false -- Stop coin gathering loop
+        end
+    else
+        AutofarmStarted = false
+        AutofarmIN = false
+        autofarmstopevent:Fire()
+    end
+end)
+
+makeToggle(autoPage, "Reset When Bag Full (Coins Only)", 2, function(_, state)
+    ResetWhenFullBag = state
+end)
+
+-- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
+sectionLabel(visPage, "ESP & CHAMS", 0)
+
+local highlightCache = {}
+local gunDropConnections = {}
+local NameESPFolder = Instance.new("Folder")
+NameESPFolder.Name = "MM2_NameESP"; NameESPFolder.Parent = CoreGui
+
+local function getRoleColor(p)
+    local role = PlayerRoleCache[p.Name]
+    if not role or PlayerDeadCache[p.Name] then return Color3.fromRGB(255, 255, 255) end
+    return getRoleColorByName(role)
+end
+
+local function applyHighlight(p)
+    if p == Player then return end
+    local char = p.Character
+    if not char then return end
+    if highlightCache[p.Name] then pcall(function() highlightCache[p.Name]:Destroy() end); highlightCache[p.Name] = nil end
+    local color = getRoleColor(p)
+    local hl = Instance.new("Highlight")
+    hl.Name = "PlayerChamHL"; hl.Adornee = char; hl.FillColor = color; hl.OutlineColor = color
+    hl.FillTransparency = 0.55; hl.OutlineTransparency = 0; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = char
+    highlightCache[p.Name] = hl
+end
+
+local function removeHighlight(p)
+    if highlightCache[p.Name] then pcall(function() highlightCache[p.Name]:Destroy() end); highlightCache[p.Name] = nil end
+end
+
+local function refreshAllChams()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Player and PlayerChamsEnabled then applyHighlight(p) end
+    end
+end
+
+local function clearAllChams()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character then
+            for _, desc in ipairs(p.Character:GetDescendants()) do
+                if desc:IsA("Highlight") and desc.Name == "PlayerChamHL" then desc:Destroy() end
+            end
+        end
+    end
+    highlightCache = {}
+end
+
+makeToggle(visPage, "Player Chams", 1, function(_, state)
+    PlayerChamsEnabled = state
+    if PlayerChamsEnabled then
+        task.spawn(fetchAllRoles)
+        refreshAllChams()
+    else
+        clearAllChams()
+    end
+end)
+
+local function highlightGunDrop(part)
+    if part:FindFirstChild("GunChamHL") then return end
+    local hl = Instance.new("Highlight")
+    hl.Name = "GunChamHL"; hl.Adornee = part; hl.FillColor = Color3.fromRGB(255, 165, 0); hl.OutlineColor = Color3.fromRGB(255, 165, 0)
+    hl.FillTransparency = 0.5; hl.OutlineTransparency = 0; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = part
+end
+
+makeToggle(visPage, "Gun Chams", 2, function(_, state)
+    GunChamEnabled = state
+    if GunChamEnabled then
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj.Name == "GunDrop" and obj:IsA("BasePart") then highlightGunDrop(obj) end
+        end
+        local conn = workspace.DescendantAdded:Connect(function(obj)
+            if GunChamEnabled and obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                task.wait(0.05); highlightGunDrop(obj)
+            end
+        end)
+        table.insert(gunDropConnections, conn)
+    else
+        for _, conn in ipairs(gunDropConnections) do conn:Disconnect() end
+        gunDropConnections = {}
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj.Name == "GunChamHL" and obj:IsA("Highlight") then obj:Destroy() end
+        end
+    end
+end)
+
+local function addNameESP(p)
+    if p == Player then return end
+    local old = NameESPFolder:FindFirstChild("NESP_" .. p.Name)
+    if old then old:Destroy() end
+    local char = p.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "NESP_" .. p.Name; bb.Adornee = hrp; bb.Size = UDim2.new(0, 120, 0, 28)
+    bb.StudsOffset = Vector3.new(0, 3.5, 0); bb.AlwaysOnTop = true; bb.Parent = NameESPFolder
+    local lbl = Instance.new("TextLabel", bb)
+    lbl.Size = UDim2.new(1,0,1,0); lbl.BackgroundTransparency = 1; lbl.Text = p.Name
+    lbl.TextColor3 = Color3.fromRGB(255,255,255); lbl.TextStrokeTransparency = 0; lbl.TextScaled = true; lbl.Font = Enum.Font.GothamBold
+end
+
+makeToggle(visPage, "Name ESP", 3, function(_, state)
+    NameESPEnabled = state
+    if NameESPEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do addNameESP(p) end
+    else
+        NameESPFolder:ClearAllChildren()
+    end
+end)
+
+makeToggle(visPage, "3D Rendering (Future)", 4, function(_, state)
+    Rendering3DEnabled = state
+    Lighting.GlobalShadows = state
+    Lighting.Technology    = state and Enum.Technology.Future or Enum.Technology.Compatibility
+end)
+
+-- ─── UI IMPLEMENTATION: MISC ─────────────────────────────────
+sectionLabel(miscPage, "PLAYER UTILITIES", 0)
+
+local function AntiAFK()
+    local GC = getconnections or get_signal_cons
+    if GC then
+        for _, v in pairs(GC(Player.Idled)) do
+            if v.Disable then v:Disable() elseif v.Disconnect then v:Disconnect() end
+        end
+    else
+        local VU = cloneref(game:GetService("VirtualUser"))
+        Player.Idled:Connect(function() VU:CaptureController(); VU:ClickButton2(Vector2.new()) end)
+    end
+end
+
+makeToggle(miscPage, "Anti-AFK", 1, function(_, state)
+    AntiAfkState = state
+    if AntiAfkState then AntiAFK() end
+end)
+
+makeToggle(miscPage, "Improve FPS", 2, function(_, state)
+    ImproveFPSenabled = state
+    if ImproveFPSenabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                for _, part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA("Accessory") or part.Name == "Radio" then part:Destroy() end
+                end
+            end
+        end
+    end
+end)
+
+makeToggle(miscPage, "Anti-Fling (Ghost Mode)", 3, function(_, state)
+    AntiFlingEnabled = state
+end)
+
+sectionLabel(miscPage, "EMOTES", 4)
+local EmoteData = {
+    { name = "Zen",      command = "zen"      },
+    { name = "Sit",      command = "sit"      },
+    { name = "Ninja",    command = "ninja"    },
+    { name = "Dab",      command = "dab"      },
+    { name = "Floss",    command = "floss"    },
+    { name = "Wave",     command = "wave"     },
+    { name = "Cheer",    command = "cheer"    },
+    { name = "Laugh",    command = "laugh"    },
+    { name = "Point",    command = "point"    },
+    { name = "Dance 1",  command = "dance"    },
+    { name = "Dance 2",  command = "dance2"   },
+    { name = "Dance 3",  command = "dance3"   },
+    { name = "Zombie",   command = "zombie"   },
+    { name = "Headless", command = "headless" },
+}
+local CurrentEmote = EmoteData[1]
+
+local function playEmote(emoteEntry)
+    if not isPlayerAlive() then return end
+    pcall(function() PlayEmoteEvent:Fire(emoteEntry.command) end)
+end
+
+makeDropdown(miscPage, "Select Emote", 5, EmoteData, 1, function(selected)
+    CurrentEmote = selected
+    playEmote(CurrentEmote)
+end)
+
+makeToggle(miscPage, "Auto Play Emote", 6, function(_, state)
+    AutoEmoteEnabled = state
+end)
+
+-- ─── UI IMPLEMENTATION: INFO ─────────────────────────────────
+local function infoCard(parent, order, key, value)
+    local card = Instance.new("Frame", parent)
+    card.LayoutOrder = order; card.Size = UDim2.new(1, 0, 0, 52); card.BackgroundColor3 = C.card
+    card.BorderSizePixel = 0; corner(card, 9); stroke(card, C.divider, 1)
+    local k = Instance.new("TextLabel", card)
+    k.Size = UDim2.new(1, -16, 0, 20); k.Position = UDim2.new(0, 12, 0, 8); k.BackgroundTransparency = 1
+    k.Text = key; k.TextColor3 = C.subtext; k.Font = Enum.Font.Gotham; k.TextSize = 10; k.TextXAlignment = Enum.TextXAlignment.Left
+    local v = Instance.new("TextLabel", card)
+    v.Size = UDim2.new(1, -16, 0, 20); v.Position = UDim2.new(0, 12, 0, 26); v.BackgroundTransparency = 1
+    v.Text = value; v.TextColor3 = C.white; v.Font = Enum.Font.GothamBold; v.TextSize = 13; v.TextXAlignment = Enum.TextXAlignment.Left
+end
+sectionLabel(infoPage, "SCRIPT", 0)
+infoCard(infoPage, 1, "Game", "Murder Mystery 2")
+infoCard(infoPage, 2, "Version", "v3.5")
+infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
+sectionLabel(infoPage, "SUPPORT", 10)
+infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
+
+-- ─── CORE LOOPS & HOOKS ──────────────────────────────────────
+ShowRoleRemote.OnClientEvent:Connect(function(data)
+    if type(data) ~= "table" then return end
+    if data.Roles then RoleColorMap = data.Roles end
+    if data.SelectedRole then LocalRole = data.SelectedRole end
+    PlayerRoleCache = {}; PlayerDeadCache = {}
+    scanPayloadForRoles(data)
+    task.spawn(fetchAllRoles)
+    if PlayerChamsEnabled then refreshAllChams() end
+    task.delay(0.3, function() if PlayerChamsEnabled then refreshAllChams() end end)
+end)
+
+for _, remote in ipairs(Remotes:GetChildren()) do
+    if remote:IsA("RemoteEvent") and remote ~= ShowRoleRemote then
+        remote.OnClientEvent:Connect(function(...)
+            for _, arg in ipairs({...}) do
+                if type(arg) == "table" then scanPayloadForRoles(arg) end
+            end
+        end)
+    end
+end
+
+PlayerDataChanged.OnClientEvent:Connect(function()
+    task.spawn(fetchAllRoles)
+    task.delay(0.3, function() if PlayerChamsEnabled then refreshAllChams() end end)
+end)
+
+local function bindPlayer(p)
+    p.CharacterAdded:Connect(function(char)
+        task.wait(0.6)
+        if PlayerChamsEnabled then applyHighlight(p) end
+        if NameESPEnabled then addNameESP(p) end
+        if ImproveFPSenabled then
+            for _, part in ipairs(char:GetChildren()) do
+                if part:IsA("Accessory") or part.Name == "Radio" then part:Destroy() end
+            end
+        end
+        if GunChamEnabled then
+            char.ChildAdded:Connect(function(item)
+                if GunChamEnabled and item:IsA("Tool") and (item.Name == "Gun" or item.Name == "Knife") then
+                    task.wait(0.05)
+                    for _, c in ipairs(item:GetChildren()) do if c:IsA("Highlight") and c.Name == "GunChamHL" then c:Destroy() end end
+                    local hl = Instance.new("Highlight")
+                    hl.Name = "GunChamHL"; hl.Adornee = item; hl.FillColor = Color3.fromRGB(255, 165, 0); hl.OutlineColor = Color3.fromRGB(255, 165, 0)
+                    hl.FillTransparency = 0.5; hl.OutlineTransparency = 0; hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop; hl.Parent = item
+                end
+            end)
+        end
+    end)
+    p.CharacterRemoving:Connect(function() removeHighlight(p); local bb = NameESPFolder:FindFirstChild("NESP_" .. p.Name); if bb then bb:Destroy() end end)
+end
+for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
+Players.PlayerAdded:Connect(bindPlayer)
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if AutoEmoteEnabled and isPlayerAlive() then playEmote(CurrentEmote) end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(2)
+        if PlayerChamsEnabled then
+            task.spawn(fetchAllRoles)
+            refreshAllChams()
+        end
+    end
+end)
+
+RunService.Stepped:Connect(function()
+    if AntiFlingEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= Player and p.Character then
+                for _, part in ipairs(p.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                end
+            end
+        end
+    end
+end)
+
+local function getCoinContainer()
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v:IsA("Model") and v:FindFirstChild("CoinContainer") then return v:FindFirstChild("CoinContainer") end
+    end
+    return nil
+end
+
+local function findNearestCoin(container)
+    local nearest, minDist = nil, math.huge
+    local char = Player.Character
+    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil, math.huge end
+    for _, v in ipairs(container:GetChildren()) do
+        local cID = v:GetAttribute("CoinID")
+        if cID and v:FindFirstChild("TouchInterest") then
+            local dist = (hrp.Position - v.Position).Magnitude
+            if dist < minDist then
+                nearest = v; minDist = dist
+                if CurrentCoinType ~= cID then CurrentCoinType = cID end
+            end
+        end
+    end
+    return nearest, minDist
+end
+
+CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
+    if tonumber(current) == tonumber(max) then
+        AutofarmIN = false
+        if AutofarmMode == "Both" then
+            -- Teleport to safety for XP after getting max coins
+            pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
+        elseif AutofarmMode == "Coins" and ResetWhenFullBag then
+            -- Reset ONLY if mode is Coins Only and Reset toggle is on
+            if Player.Character then
+                local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+                if hum then hum.Health = 0 end
+            end
+        else
+            -- If mode is "Coins" but "Reset" is off, just stop farming
+            AutofarmIN = false
+        end
+    else
+        if IsParticipating and AutofarmMode ~= "XP" then 
+            AutofarmIN = true 
+        end
+    end
+end)
+
+RoundStartEvent.OnClientEvent:Connect(function()
+    task.wait(0.5)
+    if isPlayerAlive() then
+        IsParticipating = true
+        if AutofarmStarted then
+            if AutofarmMode == "XP" then
+                -- Teleport to safety immediately for pure XP farm
+                pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
+                AutofarmIN = false 
+            else
+                AutofarmIN = true
+            end
+        end
+    else
+        IsParticipating = false; AutofarmIN = false
+    end
+    task.spawn(fetchAllRoles)
+    task.delay(0.3, function() if PlayerChamsEnabled then refreshAllChams() end end)
+    CurrentCoinType = "Searching..."
+end)
+
+RoundEndEvent.OnClientEvent:Connect(function()
+    IsParticipating = false; AutofarmIN = false
+    PlayerRoleCache = {}; PlayerDeadCache = {}; LocalRole = nil
+    task.wait(0.5)
+    if PlayerChamsEnabled then refreshAllChams() end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.0001)
+        if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() or AutofarmMode == "XP" then
+            workspace.Gravity = DefaultGravity
+            task.wait(0.3); continue
+        end
+        workspace.Gravity = 0
+        local char = Player.Character
+        if not char then task.wait(0.3); continue end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if not hrp then task.wait(0.3); continue end
+        local container = getCoinContainer()
+        if not container then task.wait(0.3); continue end
+        local coin, dist = findNearestCoin(container)
+        if not coin then task.wait(0.5); continue end
+
+        if dist > 150 then
+            pcallTP(coin.CFrame + Vector3.new(0, 3, 0))
+        else
+            local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
+            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
+            local noclipConn = RunService.Stepped:Connect(function()
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                    end
+                end
+            end)
+            tw:Play()
+            local stopConn
+            stopConn = autofarmstopevent.Event:Connect(function()
+                tw:Cancel()
+                if noclipConn then noclipConn:Disconnect() end
+                if stopConn then stopConn:Disconnect() end
+            end)
+            local timeout = tick() + 5
+            while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
+            tw:Cancel()
+            if noclipConn then noclipConn:Disconnect() end
+            if stopConn then stopConn:Disconnect() end
+        end
+    end
+end)
+
+-- ─── TOGGLE / OPEN / LOAD UI ─────────────────────────────────
+local OpenBtn = Instance.new("ImageButton", ScreenGui)
+OpenBtn.Name = "OpenBtn"
+OpenBtn.Size = UDim2.new(0, 46, 0, 46); OpenBtn.Position = UDim2.new(0, 20, 0.5, -23)
+OpenBtn.BackgroundColor3 = C.sidebar; OpenBtn.Image = "rbxassetid://129928619995803"; OpenBtn.ImageColor3 = C.accent
+OpenBtn.Visible = false; OpenBtn.Active = true; OpenBtn.Draggable = true
+corner(OpenBtn, 12); animatedStroke(OpenBtn, 1.5); applyPadding(OpenBtn, 8, 8, 8, 8)
+
+-- ─── MINIMIZE EN BARRE (comme Starving Arts) ─────────────────
+local minimized = false
+MinBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    MinBtn.Text = minimized and "+" or "-"
+    if minimized then
+        TopPatch.Visible = false
+        tween(Win, { Size = UDim2.new(0, 560, 0, 46) }, 0.3)
+        tween(Shadow, { ImageTransparency = 1 }, 0.3)
+        task.delay(0.15, function() Body.Visible = false end)
+    else
+        Body.Visible = true
+        TopPatch.Visible = true
+        tween(Win, { Size = UDim2.new(0, 560, 0, 400) }, 0.3)
+        tween(Shadow, { ImageTransparency = 0.4 }, 0.3)
+    end
+end)
+
+local function toggleUI(forceState)
+    local isVisible = forceState
+    if isVisible == nil then isVisible = not Win.Visible end
+    Win.Visible = isVisible; OpenBtn.Visible = not isVisible
+end
+
+CloseBtn.MouseButton1Click:Connect(function() toggleUI(false) end)
+OpenBtn.MouseButton1Click:Connect(function() toggleUI(true) end)
+
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if not gpe and input.KeyCode == Enum.KeyCode.F8 then toggleUI() end
+end)
+
+switchTab("Autofarm")
+
+-- ─── LOADING SCREEN ──────────────────────────────────────────
+local LoadFrame = Instance.new("Frame", ScreenGui)
+LoadFrame.Size = UDim2.new(0, 300, 0, 160); LoadFrame.Position = UDim2.new(0.5, 0, 0.5, 0); LoadFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+LoadFrame.BackgroundColor3 = C.bg; LoadFrame.BorderSizePixel = 0
+corner(LoadFrame, 12); animatedStroke(LoadFrame, 1.5)
+
+local LoadLogo = Instance.new("ImageLabel", LoadFrame)
+LoadLogo.Size = UDim2.new(0, 60, 0, 60); LoadLogo.Position = UDim2.new(0.5, 0, 0.35, 0); LoadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+LoadLogo.BackgroundTransparency = 1; LoadLogo.Image = "rbxassetid://131711664935136"; LoadLogo.ImageColor3 = C.accent
+
+local LoadText = Instance.new("TextLabel", LoadFrame)
+LoadText.Size = UDim2.new(1, 0, 0, 20); LoadText.Position = UDim2.new(0, 0, 0.65, 0)
+LoadText.BackgroundTransparency = 1; LoadText.Text = "Initializing MM2 Autofarm..."; LoadText.TextColor3 = C.subtext
+LoadText.Font = Enum.Font.GothamSemibold; LoadText.TextSize = 12
+
+local BarBG = Instance.new("Frame", LoadFrame)
+BarBG.Size = UDim2.new(0, 220, 0, 6); BarBG.Position = UDim2.new(0.5, 0, 0.85, 0); BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
+BarBG.BackgroundColor3 = C.card; BarBG.BorderSizePixel = 0; corner(BarBG, 4)
+
+local BarFill = Instance.new("Frame", BarBG)
+BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = C.white; BarFill.BorderSizePixel = 0; corner(BarFill, 4)
+
+task.spawn(function()
+    if WEBHOOK_URL and WEBHOOK_URL ~= "" then
+        task.spawn(function()
+            local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+            if req then
+                local executorName = identifyexecutor and identifyexecutor() or "Unknown Executor"
+                local hwid = "Unknown"
+                pcall(function() hwid = gethwid and gethwid() or game:GetService("RbxAnalyticsService"):GetClientId() end)
+                local accountAge = Player.AccountAge
+                local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. Player.UserId .. "&width=420&height=420&format=png"
+                local data = {
+                    ["embeds"] = {{
+                        ["title"] = "🚀 Comet Hub Executed!",
+                        ["description"] = "**Player Profile:** [Click Here](https://www.roblox.com/users/" .. Player.UserId .. "/profile)\n**Game:** [Murder Mystery 2](https://www.roblox.com/games/".. game.PlaceId ..")",
+                        ["color"] = 16777215, ["thumbnail"] = { ["url"] = avatarUrl },
+                        ["fields"] = {
+                            {["name"] = "👤 Player",      ["value"] = "```" .. Player.Name .. " (@" .. Player.DisplayName .. ")```", ["inline"] = true},
+                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                     ["inline"] = true},
+                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                   ["inline"] = true},
+                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                                ["inline"] = true},
+                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                              ["inline"] = true},
+                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                        ["inline"] = false}
+                        },
+                        ["footer"] = { ["text"] = "Comet Hub Analytics" },
+                        ["timestamp"] = DateTime.now():ToIsoDate()
+                    }}
+                }
+                pcall(function() req({Url = WEBHOOK_URL, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = HttpService:JSONEncode(data)}) end)
+            end
+        end)
+    end
+
+    tween(BarFill, {Size = UDim2.new(0.35, 0, 1, 0)}, 0.8); task.wait(0.8)
+    LoadText.Text = "Loading MM2 modules..."
+    tween(BarFill, {Size = UDim2.new(0.75, 0, 1, 0)}, 1.2); task.wait(1.2)
+    LoadText.Text = "Bypassing anti-cheat..."
+    tween(BarFill, {Size = UDim2.new(1, 0, 1, 0)}, 0.6); task.wait(0.6)
+    LoadText.Text = "Welcome to Comet Hub!"; LoadText.TextColor3 = C.white; task.wait(0.6)
+
+    tween(LoadFrame, {Size = UDim2.new(0, 280, 0, 140), BackgroundTransparency = 1}, 0.3)
+    for _, v in pairs(LoadFrame:GetDescendants()) do
+        if v:IsA("TextLabel") then tween(v, {TextTransparency = 1}, 0.3)
+        elseif v:IsA("ImageLabel") then tween(v, {ImageTransparency = 1}, 0.3)
+        elseif v:IsA("Frame") then tween(v, {BackgroundTransparency = 1}, 0.3)
+        elseif v:IsA("UIStroke") then tween(v, {Transparency = 1}, 0.3) end
+    end
+
+    task.wait(0.3); LoadFrame:Destroy()
+    Win.Size = UDim2.new(0, 500, 0, 360); Win.Visible = true
+    tween(Win, {Size = UDim2.new(0, 560, 0, 400)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+end)
