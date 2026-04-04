@@ -1078,51 +1078,116 @@ RoundEndEvent.OnClientEvent:Connect(function()
     if PlayerChamsEnabled then refreshAllChams() end
 end)
 
+-- ─── AUTOFARM LOOP (Vertex-style : CFrame direct Heartbeat + TweenService approche finale) ─────
 task.spawn(function()
+    local SPEED        = 20  -- studs/seconde (identique à Vertex ~20-21 stud/s)
+    local TWEEN_DIST   = 3   -- studs : distance à partir de laquelle on switch vers le tween
+    local TWEEN_DURATION = 1.2 -- secondes (identique à Vertex 1.230s détecté par spy)
+
     while true do
         task.wait(0.0001)
+
         if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() then
             workspace.Gravity = DefaultGravity
             task.wait(0.3); continue
         end
+
         workspace.Gravity = 0
+
         local char = Player.Character
         if not char then task.wait(0.3); continue end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hrp then task.wait(0.3); continue end
+
         local container = getCoinContainer()
         if not container then task.wait(0.3); continue end
         local coin, dist = findNearestCoin(container)
         if not coin then task.wait(0.5); continue end
 
+        -- TP directe si trop loin (inchangé)
         if dist > 150 then
             pcallTP(coin.CFrame + Vector3.new(0, 3, 0))
         else
-            local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
+            local targetPos = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
+            local tweenDone = false
+            local stopFired = false
+
+            -- Noclip continu sur Stepped (pendant toute la durée du mouvement)
             local noclipConn = RunService.Stepped:Connect(function()
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
                     end
                 end
             end)
-            tw:Play()
+
+            -- Connexion stop event
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
-                tw:Cancel()
-                if noclipConn then noclipConn:Disconnect() end
-                if stopConn then stopConn:Disconnect() end
+                stopFired = true
             end)
-            local timeout = tick() + 5
-            while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
-            tw:Cancel()
+
+            -- ─── Phase 1 : Heartbeat CFrame direct à 20 studs/s ───────
+            -- Reset des forces physiques à chaque frame (bloque les poussées map)
+            local heartConn
+            heartConn = RunService.Heartbeat:Connect(function(dt)
+                if stopFired or not AutofarmIN then
+                    heartConn:Disconnect(); tweenDone = true; return
+                end
+                if tweenDone then return end
+
+                local dir = targetPos - hrp.Position
+                local d   = dir.Magnitude
+
+                -- Reset velocity chaque frame = anti-rollback map
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+
+                if d <= TWEEN_DIST then
+                    -- ─── Phase 2 : TweenService Linear pour trigger le TouchInterest ───
+                    tweenDone = true
+                    heartConn:Disconnect()
+
+                    local tw = TweenService:Create(
+                        hrp,
+                        TweenInfo.new(TWEEN_DURATION, Enum.EasingStyle.Linear),
+                        { CFrame = CFrame.new(targetPos) }
+                    )
+                    tw:Play()
+
+                    -- Fallback firetouchinterest à la fin du tween
+                    tw.Completed:Connect(function()
+                        if firetouchinterest and coin and coin:FindFirstChild("TouchInterest") then
+                            pcall(function()
+                                firetouchinterest(hrp, coin, 0)
+                                task.wait(0.05)
+                                firetouchinterest(hrp, coin, 1)
+                            end)
+                        end
+                    end)
+                else
+                    -- Déplacement direct à vitesse constante
+                    local step = math.min(SPEED * dt, d)
+                    hrp.CFrame = hrp.CFrame + dir.Unit * step
+                end
+            end)
+
+            -- Attente collecte de la pièce (timeout 6s)
+            local timeout = tick() + 6
+            while coin:FindFirstChild("TouchInterest") and tick() < timeout and not stopFired do
+                task.wait()
+            end
+
+            -- Cleanup
+            if not tweenDone and heartConn then heartConn:Disconnect() end
             if noclipConn then noclipConn:Disconnect() end
             if stopConn then stopConn:Disconnect() end
         end
     end
 end)
+
 
 -- ─── TOGGLE / OPEN / LOAD UI ─────────────────────────────────
 local OpenBtn = Instance.new("ImageButton", ScreenGui)
