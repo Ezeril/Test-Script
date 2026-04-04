@@ -302,7 +302,8 @@ local function chat(msg) pcall(function() _TCHANNEL:SendAsync(msg) end) end
 -- ============================================================
 local _boothlocation
 local _shuffled = workspace:FindFirstChild("MapUI")
-if _shuffled then
+-- FIX 1: only use workspace MapUI if BoothUI is already inside it
+if _shuffled and (_shuffled:FindFirstChild("BoothUI") or _shuffled:WaitForChild("BoothUI", 2)) then
     _boothlocation = _shuffled
 else
     pcall(function()
@@ -310,6 +311,9 @@ else
             :WaitForChild("MapUIContainer",5)
             :WaitForChild("MapUI",5)
     end)
+    if not _boothlocation then
+        pcall(function() _boothlocation = workspace:WaitForChild("MapUI", 3) end)
+    end
 end
 
 -- ============================================================
@@ -1547,6 +1551,8 @@ task.spawn(function()
 
     task.spawn(function()
         if not _boothlocation then return serverHop() end
+        -- FIX 4: start hop timer regardless of whether Remotes loaded
+        hopSet()
         if not Remotes then return end
 
         local function findUnclaimed()
@@ -1589,18 +1595,24 @@ task.spawn(function()
         end
 
         if not pcall(findUnclaimed) then return serverHop() end
+        -- FIX 2: if player has no booth yet but ≥1 unclaimed booth was found,
+        -- promote index [1] into [2] so boothclaim() always works
+        if not unclaimed[2] and unclaimed[1] then unclaimed[2] = table.remove(unclaimed, 1) end
         if not unclaimed[2] then return serverHop() end
 
         local errCount = 0
         local function boothclaim()
+            -- FIX 3: check both DisplayName and Name; guard against missing frame
             Remotes.Event("ClaimBooth"):InvokeServer(unclaimed[2])
-            if not _boothlocation.BoothUI:FindFirstChild("BoothUI"..unclaimed[2]).Details.Owner.Text
-                    :find(player.DisplayName) then
+            local ownerFrame = _boothlocation.BoothUI:FindFirstChild("BoothUI"..unclaimed[2])
+            if not ownerFrame then error() end
+            local function owned()
+                local t = ownerFrame.Details.Owner.Text
+                return t:find(player.DisplayName) or t:find(player.Name)
+            end
+            if not owned() then
                 task.wait(1)
-                if not _boothlocation.BoothUI:FindFirstChild("BoothUI"..unclaimed[2]).Details.Owner.Text
-                        :find(player.DisplayName) then
-                    error()
-                end
+                if not owned() then error() end
             end
         end
 
@@ -1661,6 +1673,15 @@ task.spawn(function()
 
         pcall(getgenv().walkToBooth)
         updateBoothText()
+
+        -- FIX 5: periodic text update loop – honours the delay slider, runs independently
+        task.spawn(function()
+            while task.wait(math.max(1, getgenv().settings.textUpdateDelay)) do
+                if getgenv().settings.textUpdateToggle and bclaimed and unclaimed[2] then
+                    pcall(updateBoothText)
+                end
+            end
+        end)
     end)
 
     task.spawn(function()
