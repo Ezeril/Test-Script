@@ -1,8 +1,8 @@
 -- ============================================================
---  MM2 COMET HUB v3.5 - Silent Auto-Detect & Dropdown UI
+--  MM2 COMET HUB v3.6 - Silent Auto-Detect & Dropdown UI
 --  + Détection automatique 100% invisible
 --  + Menu déroulant complet pour les Emotes
---  + Multi-mode Autofarm (Coins, XP, Both) FIXÉ
+--  + Multi-mode Autofarm FIXÉ (Mémoire du sac plein)
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -166,7 +166,7 @@ local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChi
 
 -- ÉTATS
 local AutofarmStarted    = false
-local AutofarmMode       = "Coins" -- Initialisé sur "Coins Only" par défaut
+local AutofarmMode       = "Coins" -- Options: "Coins", "XP", "Both"
 local AutofarmIN         = false
 local AntiAfkState       = false
 local ImproveFPSenabled  = false
@@ -174,6 +174,7 @@ local ResetWhenFullBag   = false
 local CurrentCoinType    = "Searching..."
 local autofarmstopevent  = Instance.new("BindableEvent")
 local IsParticipating    = false
+local BagIsFull          = false -- Nouvelle mémoire du sac plein
 
 local PlayerChamsEnabled = false
 local GunChamEnabled     = false
@@ -199,7 +200,7 @@ local ROLES = { Murderer = true, Sheriff = true, Innocent = true, Hero = true }
 local SafePlatform = Instance.new("Part")
 SafePlatform.Name = "CometSafePlatform"
 SafePlatform.Size = Vector3.new(50, 5, 50)
-SafePlatform.Position = Vector3.new(0, 2000, 0) -- Hauteur sécurisée pour éviter les barrières de kill
+SafePlatform.Position = Vector3.new(0, 2000, 0)
 SafePlatform.Anchored = true
 SafePlatform.Transparency = 1
 SafePlatform.CanCollide = true
@@ -480,7 +481,7 @@ applyPadding(Sidebar, 12, 12, 8, 8)
 local SideVer = Instance.new("TextLabel", Sidebar)
 SideVer.Size = UDim2.new(1, 0, 0, 14)
 SideVer.BackgroundTransparency = 1
-SideVer.Text = "v3.5"
+SideVer.Text = "v3.6"
 SideVer.TextColor3 = C.subtext
 SideVer.Font = Enum.Font.Gotham
 SideVer.TextSize = 10
@@ -692,15 +693,28 @@ end
 -- ─── UI IMPLEMENTATION: AUTOFARM ─────────────────────────────
 sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 
--- Retour au bouton de démarrage classique, qui agit comme le master switch
 makeToggle(autoPage, "Start Autofarm", 1, function(_, state)
     AutofarmStarted = state
     if AutofarmStarted then
         if AutofarmMode == "XP" and IsParticipating and isPlayerAlive() then
             pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
             AutofarmIN = false
-        else
-            AutofarmIN = isPlayerAlive() and IsParticipating
+        elseif (AutofarmMode == "Coins" or AutofarmMode == "Both") and IsParticipating and isPlayerAlive() then
+            -- Vérification vitale: si le sac est déjà plein au démarrage
+            if BagIsFull then
+                AutofarmIN = false
+                if AutofarmMode == "Both" then
+                    pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
+                elseif AutofarmMode == "Coins" then
+                    IsParticipating = false
+                    if ResetWhenFullBag and Player.Character then
+                        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.Health = 0 end
+                    end
+                end
+            else
+                AutofarmIN = true
+            end
         end
     else
         AutofarmIN = false
@@ -714,24 +728,41 @@ local FarmModes = {
     { name = "Coins + XP", value = "Both" },
 }
 
--- Le mode par défaut est index 1 (Coins Only)
 makeDropdown(autoPage, "Farm Mode", 2, FarmModes, 1, function(selected)
     AutofarmMode = selected.value
-    autofarmstopevent:Fire() -- Stoppe le mouvement actuel pour appliquer le nouveau mode
+    autofarmstopevent:Fire() 
     
-    -- Si l'autofarm était déjà en route et qu'on change le mode en pleine partie :
     if AutofarmStarted and IsParticipating and isPlayerAlive() then
         if AutofarmMode == "XP" then
             pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
             AutofarmIN = false
         elseif AutofarmMode == "Coins" or AutofarmMode == "Both" then
-            AutofarmIN = true
+            if BagIsFull then
+                AutofarmIN = false
+                if AutofarmMode == "Both" then
+                    pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
+                elseif AutofarmMode == "Coins" then
+                    IsParticipating = false
+                    if ResetWhenFullBag and Player.Character then
+                        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+                        if hum then hum.Health = 0 end
+                    end
+                end
+            else
+                AutofarmIN = true
+            end
         end
     end
 end)
 
 makeToggle(autoPage, "Reset When Bag Full (Coins Mode)", 3, function(_, state)
     ResetWhenFullBag = state
+    -- Rétroactivité: si on l'active ALORS QUE le sac est déjà plein
+    if ResetWhenFullBag and BagIsFull and AutofarmMode == "Coins" and isPlayerAlive() then
+        IsParticipating = false
+        local hum = Player.Character:FindFirstChildOfClass("Humanoid")
+        if hum then hum.Health = 0 end
+    end
 end)
 
 -- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
@@ -933,7 +964,7 @@ local function infoCard(parent, order, key, value)
 end
 sectionLabel(infoPage, "SCRIPT", 0)
 infoCard(infoPage, 1, "Game", "Murder Mystery 2")
-infoCard(infoPage, 2, "Version", "v3.5 (Fixed)")
+infoCard(infoPage, 2, "Version", "v3.6 (Fixed Memory)")
 infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
 sectionLabel(infoPage, "SUPPORT", 10)
 infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
@@ -1047,21 +1078,20 @@ local function findNearestCoin(container)
 end
 
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
-    if tonumber(current) == tonumber(max) then
+    if tonumber(current) >= tonumber(max) then
+        BagIsFull = true
         AutofarmIN = false
         if AutofarmMode == "Both" then
-            -- Teleport to safety for XP after getting max coins
             pcallTP(SafePlatform.CFrame + Vector3.new(0, 5, 0))
-        else
-            -- LA LIGNE MAGIQUE QUI ÉTAIT MANQUANTE :
+        elseif AutofarmMode == "Coins" then
             IsParticipating = false 
-            
             if ResetWhenFullBag and Player.Character then
                 local hum = Player.Character:FindFirstChildOfClass("Humanoid")
                 if hum then hum.Health = 0 end
             end
         end
     else
+        BagIsFull = false
         if IsParticipating and AutofarmMode ~= "XP" then 
             AutofarmIN = true 
         end
@@ -1069,6 +1099,7 @@ CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
 end)
 
 RoundStartEvent.OnClientEvent:Connect(function()
+    BagIsFull = false
     task.wait(0.5)
     if isPlayerAlive() then
         IsParticipating = true
@@ -1090,6 +1121,7 @@ end)
 
 RoundEndEvent.OnClientEvent:Connect(function()
     IsParticipating = false; AutofarmIN = false
+    BagIsFull = false
     PlayerRoleCache = {}; PlayerDeadCache = {}; LocalRole = nil
     task.wait(0.5)
     if PlayerChamsEnabled then refreshAllChams() end
