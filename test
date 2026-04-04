@@ -224,56 +224,30 @@ end
 -- ============================================================
 --  6. RECHERCHE RAISED
 -- ============================================================
-sep("RECHERCHE RAISED")
+sep("RECHERCHE RAISED DANS BOOTHUI ET WORKSPACE")
 
-for _, v in ipairs(player:GetChildren()) do
-    print(v.Name .. " (" .. v.ClassName .. ")")
-    if v:IsA("Folder") or v:IsA("Configuration") then
-        for _, c in ipairs(v:GetChildren()) do
-            print("    → " .. c.Name .. " (" .. c.ClassName .. ") = " .. tostring(pcall(function() return c.Value end)))
+-- Scan du BoothUI du joueur
+local boothUI = workspace:FindFirstChild("MapUI") and workspace.MapUI:FindFirstChild("BoothUI")
+if boothUI then
+    for _, booth in ipairs(boothUI:GetChildren()) do
+        if booth:FindFirstChild("Details") then
+            local details = booth.Details
+            for _, v in ipairs(details:GetChildren()) do
+                local val = ""
+                if v:IsA("NumberValue") or v:IsA("IntValue") or v:IsA("StringValue") then
+                    val = " = " .. tostring(v.Value)
+                end
+                print(booth.Name .. " > Details > " .. v.Name .. " (" .. v.ClassName .. ")" .. val)
+            end
         end
     end
 end
 
-sep("RECHERCHE RAISED APPROFONDIE")
-
--- Scan récursif de tout le player
-local function scanRecursive(parent, depth)
-    if depth > 4 then return end
-    for _, v in ipairs(parent:GetChildren()) do
-        local val = ""
-        if v:IsA("NumberValue") or v:IsA("IntValue") then
-            val = " = " .. tostring(v.Value)
-        end
-        print(string.rep("  ", depth) .. "→ " .. v.Name .. " (" .. v.ClassName .. ")" .. val)
-        scanRecursive(v, depth + 1)
-    end
-end
-
-sep("RECHERCHE RAISED APPROFONDIE")
-
--- Scan récursif de tout le player
-local function scanRecursive(parent, depth)
-    if depth > 4 then return end
-    for _, v in ipairs(parent:GetChildren()) do
-        local val = ""
-        if v:IsA("NumberValue") or v:IsA("IntValue") then
-            val = " = " .. tostring(v.Value)
-        end
-        print(string.rep("  ", depth) .. "→ " .. v.Name .. " (" .. v.ClassName .. ")" .. val)
-        scanRecursive(v, depth + 1)
-    end
-end
-
-print("== Player children (complet) ==")
-scanRecursive(player, 0)
-
--- Cherche dans ReplicatedStorage par nom de player
-print("\n== ReplicatedStorage scan ==")
+-- Scan RemoteEvents dans ReplicatedStorage
+print("\n== RemoteEvents dans ReplicatedStorage ==")
 for _, v in ipairs(ReplicatedStorage:GetChildren()) do
-    if v.Name == player.Name or v.Name == tostring(player.UserId) then
-        print("Trouvé: " .. v.Name .. " (" .. v.ClassName .. ")")
-        scanRecursive(v, 1)
+    if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") or v:IsA("BindableEvent") then
+        print("→ " .. v.Name .. " (" .. v.ClassName .. ")")
     end
 end
 
