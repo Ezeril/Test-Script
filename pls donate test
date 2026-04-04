@@ -1,5 +1,5 @@
 -- ============================================================
---  COMET HUB (Pls Donate) - Full Feature Edition v3.0
+--  COMET HUB (Pls Donate) - Full Feature Edition v3.1
 -- ============================================================
 
 repeat task.wait() until game:IsLoaded()
@@ -763,7 +763,7 @@ applyPadding(Sidebar,12,12,8,8)
 local SideVer = Instance.new("TextLabel",Sidebar)
 SideVer.Size                 = UDim2.new(1,0,0,14)
 SideVer.BackgroundTransparency = 1
-SideVer.Text                 = "v3.0"
+SideVer.Text                 = "v3.1"
 SideVer.TextColor3           = C.subtext
 SideVer.Font                 = Enum.Font.Gotham
 SideVer.TextSize             = 10
@@ -1372,7 +1372,7 @@ end)
 -- ============================================================
 sectionLabel(infoPage,"SCRIPT",0)
 infoCard(infoPage,1,"Game","Pls Donate")
-infoCard(infoPage,2,"Version","v3.0")
+infoCard(infoPage,2,"Version","v3.1")
 infoCard(infoPage,3,"Hub","Comet Hub")
 infoCard(infoPage,4,"Credits","noxis.lua")
 sectionLabel(infoPage,"SUPPORT",10)
