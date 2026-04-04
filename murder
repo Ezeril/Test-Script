@@ -180,6 +180,7 @@ local Rendering3DEnabled = false
 local NameESPEnabled     = false
 local AutoEmoteEnabled   = false
 local AntiFlingEnabled   = false
+local AutoGrabGunEnabled = false
 
 local RoleColorMap    = {}
 local LocalRole       = nil
@@ -838,6 +839,12 @@ makeToggle(miscPage, "Anti-Fling (Ghost Mode)", 3, function(_, state)
     AntiFlingEnabled = state
 end)
 
+sectionLabel(miscPage, "WEAPONS", 3.5)
+
+makeToggle(miscPage, "Auto Grab Gun", 3.6, function(_, state)
+    AutoGrabGunEnabled = state
+end)
+
 sectionLabel(miscPage, "EMOTES", 4)
 local EmoteData = {
     { name = "Zen",      command = "zen"      },
@@ -943,6 +950,39 @@ local function bindPlayer(p)
 end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
+
+-- ─── AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) ─────
+task.spawn(function()
+    while true do
+        task.wait(0.25)
+        -- Ne pas grab si on est Murderer (on a deja le couteau, pas besoin du gun)
+        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
+        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
+            local char = Player.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            -- On agit seulement si le joueur n'a pas encore le gun
+            if hrp and not char:FindFirstChild("Gun") then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                        -- Methode Vertex : on teleporte le GunDrop sur le joueur (pas le joueur sur le gun)
+                        pcall(function()
+                            obj.CFrame = hrp.CFrame
+                        end)
+                        -- Fallback firetouchinterest (Synapse X / Wave / Fluxus supportent ca)
+                        if firetouchinterest then
+                            pcall(function()
+                                firetouchinterest(hrp, obj, 0)
+                                task.wait(0.05)
+                                firetouchinterest(hrp, obj, 1)
+                            end)
+                        end
+                        break -- on prend le premier GunDrop trouve
+                    end
+                end
+            end
+        end
+    end
+end)
 
 task.spawn(function()
     while true do
