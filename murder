@@ -506,7 +506,7 @@ local function promptKey()
                 if v:IsA("TextLabel") or v:IsA("TextBox") then tween(v, { TextTransparency = 1 }, 0.3)
                 elseif v:IsA("TextButton") then tween(v, { BackgroundTransparency = 1, TextTransparency = 1 }, 0.3)
                 elseif v:IsA("Frame") and v ~= Win then tween(v, { BackgroundTransparency = 1 }, 0.3)
-                elseif v:IsA("UIStroke") then tween(v, { Transparency = 1 }, 0.3)
+                elseif v:IsA("UIStroke") and v.Parent ~= Win then tween(v, { Transparency = 1 }, 0.3)
                 elseif v:IsA("ImageLabel") and v ~= Shadow then tween(v, { ImageTransparency = 1 }, 0.3)
                 end
             end
