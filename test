@@ -23,22 +23,43 @@ local function getHWID()
 end
 
 local function verifyKey(key, hwid)
+    local url = API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid)
+    
     local ok, result = pcall(function()
-        return HttpService:GetAsync(
-            API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid),
-            true
-        )
+        -- 1. On tente d'utiliser la fonction de l'executeur en priorité
+        if type(request) == "function" then
+            local response = request({
+                Url = url,
+                Method = "GET"
+            })
+            return response.Body
+        elseif type(http_request) == "function" then
+            local response = http_request({
+                Url = url,
+                Method = "GET"
+            })
+            return response.Body
+        else
+            -- 2. Fallback classique (si tu testes dans Roblox Studio côté serveur)
+            return HttpService:GetAsync(url, true)
+        end
     end)
-    if not ok then return false, "Erreur reseau" end
+
+    if not ok then return false, "Erreur reseau (Requete bloquee)" end
+
     local data
     pcall(function() data = HttpService:JSONDecode(result) end)
-    if not data then return false, "Reponse invalide" end
+    
+    if not data then return false, "Reponse invalide de l'API" end
+
+    -- La suite de ton code d'origine...
     if data.valid then
         local info = data.bound
             and ("Appareil lie · " .. (data.expiresIn or "?") .. " min restantes")
             or  ((data.expiresIn or "?") .. " min restantes")
         return true, info
     end
+
     local reasons = {
         KEY_NOT_FOUND  = "Cle introuvable",
         KEY_EXPIRED    = "Cle expiree — utilise /genkey",
