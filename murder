@@ -3,7 +3,7 @@
 --  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
---  + Image Tabs & Fixed Autofarm (Lobby Check & Mid-round)
+--  + Image Tabs, Fixed Autofarm & Teleport Buttons
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -538,7 +538,7 @@ local function makeTabBtn(def, index)
     ico.Size = UDim2.new(0, 14, 0, 14)
     ico.AnchorPoint = Vector2.new(0, 0.5)
     
-    ico.Position = UDim2.new(0, 12, 0.5, 0) 
+    ico.Position = UDim2.new(0, 12, 0.5, 4) 
     
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
@@ -630,6 +630,34 @@ local function makeToggle(parent, text, order, callback)
     return btn
 end
 
+-- ─── NOUVELLE FONCTION : BOUTON SIMPLE ───────────────────────
+local function makeButton(parent, text, order, callback)
+    local btn = Instance.new("TextButton", parent)
+    btn.LayoutOrder = order
+    btn.Size = UDim2.new(1, 0, 0, 38)
+    btn.BackgroundColor3 = C.card
+    btn.Text = "   " .. text
+    btn.TextColor3 = C.text
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.TextXAlignment = Enum.TextXAlignment.Left
+    btn.BorderSizePixel = 0
+    corner(btn, 9)
+    stroke(btn, C.divider, 1)
+
+    btn.MouseButton1Click:Connect(function()
+        -- Effet visuel au clic
+        tween(btn, { BackgroundColor3 = Color3.fromRGB(60, 60, 60) }, 0.1)
+        task.delay(0.1, function() tween(btn, { BackgroundColor3 = C.cardHover }, 0.1) end)
+        callback()
+    end)
+
+    btn.MouseEnter:Connect(function() tween(btn, { BackgroundColor3 = C.cardHover }) end)
+    btn.MouseLeave:Connect(function() tween(btn, { BackgroundColor3 = C.card }) end)
+    
+    return btn
+end
+
 local function makeDropdown(parent, title, order, options, defaultIndex, callback)
     local container = Instance.new("Frame", parent)
     container.LayoutOrder = order
@@ -700,6 +728,14 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
     return container
 end
 
+-- ─── PRE-REQUIS POUR LES TELEPORTATIONS ──────────────────────
+local function getCoinContainer()
+    for _, v in ipairs(workspace:GetChildren()) do
+        if v:IsA("Model") and v:FindFirstChild("CoinContainer") then return v:FindFirstChild("CoinContainer") end
+    end
+    return nil
+end
+
 -- ─── UI IMPLEMENTATION: AUTOFARM ─────────────────────────────
 sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 
@@ -713,6 +749,42 @@ end)
 
 makeToggle(autoPage, "Reset When Bag Full", 2, function(_, state)
     ResetWhenFullBag = state
+end)
+
+-- NOUVELLE SECTION: TELEPORTS
+sectionLabel(autoPage, "TELEPORTS", 3)
+
+makeButton(autoPage, "Teleport to Lobby", 4, function()
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local lobbySpawn = workspace:FindFirstChild("Lobby") and workspace.Lobby:FindFirstChild("Spawns")
+        if lobbySpawn and #lobbySpawn:GetChildren() > 0 then
+            local randomSpawn = lobbySpawn:GetChildren()[math.random(1, #lobbySpawn:GetChildren())]
+            hrp.CFrame = randomSpawn.CFrame + Vector3.new(0, 3, 0)
+        else
+            -- Coordonnées du lobby par défaut au cas où
+            hrp.CFrame = CFrame.new(-108, 140, 21)
+        end
+    end
+end)
+
+makeButton(autoPage, "Teleport to Map", 5, function()
+    local char = Player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        local mapSpawns = workspace:FindFirstChild("Normal") and workspace.Normal:FindFirstChild("Spawns")
+        if mapSpawns and #mapSpawns:GetChildren() > 0 then
+            local randomSpawn = mapSpawns:GetChildren()[math.random(1, #mapSpawns:GetChildren())]
+            hrp.CFrame = randomSpawn.CFrame + Vector3.new(0, 3, 0)
+        else
+            -- Si la map n'a pas de Spawns normaux (ou introuvable), on se TP sur les pièces
+            local container = getCoinContainer()
+            if container and #container:GetChildren() > 0 then
+                hrp.CFrame = container:GetChildren()[1].CFrame + Vector3.new(0, 5, 0)
+            end
+        end
+    end
 end)
 
 -- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
@@ -997,13 +1069,6 @@ task.spawn(function()
     end
 end)
 
-local function getCoinContainer()
-    for _, v in ipairs(workspace:GetChildren()) do
-        if v:IsA("Model") and v:FindFirstChild("CoinContainer") then return v:FindFirstChild("CoinContainer") end
-    end
-    return nil
-end
-
 local function findNearestCoin(container)
     local nearest, minDist = nil, math.huge
     local char = Player.Character
@@ -1075,61 +1140,44 @@ RunService.Stepped:Connect(function()
     end
 end)
 
--- ============================================================
--- NOUVELLE LOGIQUE D'AUTOFARM : Ultra Smooth (Avec Animations)
--- ============================================================
 task.spawn(function()
     while true do
         task.wait(0.05)
         
-        local char = Player.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local hum = char and char:FindFirstChildOfClass("Humanoid")
-        
-        -- Si désactivé, sac plein, mort OU qu'on n'est pas dans la partie
+        -- Si désactivé, sac plein, mort OU qu'on est pas dans la game (lobby)
         if not AutofarmStarted or BagFull or not isPlayerAlive() or not isPlayingRound() then
             workspace.Gravity = DefaultGravity
-            -- On nettoie la physique artificielle pour rendre le contrôle total
-            if hrp and hrp:FindFirstChild("CometBV") then
-                hrp.CometBV:Destroy()
-            end
             task.wait(0.3)
             continue
         end
         
         local container = getCoinContainer()
         if not container then
+            workspace.Gravity = DefaultGravity
             task.wait(0.3)
             continue
         end
         
         local coin, dist = findNearestCoin(container)
-        if not coin or not hrp or not hum then
+        if not coin then
+            workspace.Gravity = DefaultGravity
             task.wait(0.3)
             continue
         end
 
-        -- MAGIE : On annule la gravité avec un BodyVelocity au lieu de PlatformStand.
-        -- Le personnage flotte parfaitement, mais les animations continuent !
-        local bv = hrp:FindFirstChild("CometBV")
-        if not bv then
-            bv = Instance.new("BodyVelocity")
-            bv.Name = "CometBV"
-            bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-            bv.Velocity = Vector3.zero
-            bv.Parent = hrp
-        end
+        workspace.Gravity = 0
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        hrp.AssemblyLinearVelocity = Vector3.zero
 
         if dist > 150 then
-            -- Téléportation instantanée si on est beaucoup trop loin
             hrp.CFrame = coin.CFrame + Vector3.new(0, 3, 0)
             task.wait(0.1)
         else
-            -- Déplacement fluide ("Smooth Tween")
-            local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.2, coin.Position.Z)
-            local timeToReach = dist / 28 -- Vitesse équilibrée (ni trop lent, ni suspect)
-            
-            local tw = TweenService:Create(hrp, TweenInfo.new(timeToReach, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
+            local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
+            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
@@ -1139,19 +1187,9 @@ task.spawn(function()
             
             tw:Play()
             
-            -- On attend d'arriver sur la pièce ou on force l'aspiration si on est proche
-            local timeout = tick() + timeToReach + 0.5
+            local timeout = tick() + (dist / 25) + 1
             while AutofarmStarted and not BagFull and isPlayerAlive() and isPlayingRound() and coin.Parent and coin:FindFirstChild("TouchInterest") and tick() < timeout do
                 task.wait(0.05)
-                
-                -- Aspiration "Vertex" : On simule la touche si on est à moins de 6 studs
-                if firetouchinterest and (hrp.Position - coin.Position).Magnitude < 6 then
-                    pcall(function()
-                        firetouchinterest(hrp, coin, 0)
-                        task.wait(0.01)
-                        firetouchinterest(hrp, coin, 1)
-                    end)
-                end
             end
             
             tw:Cancel()
