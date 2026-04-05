@@ -2,6 +2,7 @@
 --  COMET HUB - KEY SYSTEM (MM2 HUB EDITION)
 --  + Design unifié avec le menu principal
 --  + Transition fluide vers l'écran de chargement
+--  + Interface 100% en Anglais (Centrée, sans point)
 -- ============================================================
 
 local API_URL     = "https://cometkeyapi.netlify.app/verify"
@@ -37,28 +38,28 @@ local function verifyKey(key, hwid)
         end
     end)
 
-    if not ok then return false, "Erreur réseau (Requête bloquée)" end
+    if not ok then return false, "Network Error (Request blocked)" end
 
     local data
     pcall(function() data = HttpService:JSONDecode(result) end)
     
-    if not data then return false, "Réponse invalide de l'API" end
+    if not data then return false, "Invalid API response" end
 
     if data.valid then
         local info = data.bound
-            and ("Appareil lié · " .. (data.expiresIn or "?") .. " min restantes")
-            or  ((data.expiresIn or "?") .. " min restantes")
+            and ("Device bound · " .. (data.expiresIn or "?") .. " mins remaining")
+            or  ((data.expiresIn or "?") .. " mins remaining")
         return true, info
     end
 
     local reasons = {
-        KEY_NOT_FOUND  = "Clé introuvable",
-        KEY_EXPIRED    = "Clé expirée — utilise /genkey",
-        HWID_MISMATCH  = "Clé liée à un autre appareil",
-        NO_HWID        = "Erreur HWID manquant",
-        NO_KEY         = "Aucune clé fournie",
+        KEY_NOT_FOUND  = "Key not found",
+        KEY_EXPIRED    = "Key expired — use /genkey",
+        HWID_MISMATCH  = "HWID mismatch",
+        NO_HWID        = "Missing HWID",
+        NO_KEY         = "No key provided",
     }
-    return false, reasons[data.reason] or (data.reason or "Erreur inconnue")
+    return false, reasons[data.reason] or (data.reason or "Unknown Error")
 end
 
 -- ============================================================
@@ -205,14 +206,14 @@ local function promptKey()
     TopSub.Position = UDim2.new(0, 48, 0, 26)
     TopSub.Size = UDim2.new(0, 250, 0, 14)
     TopSub.BackgroundTransparency = 1
-    TopSub.Text = "Key System — Verification requise"
+    TopSub.Text = "Key System — Verification Required"
     TopSub.TextColor3 = C.subtext
     TopSub.Font = Enum.Font.Gotham
     TopSub.TextSize = 11
     TopSub.TextXAlignment = Enum.TextXAlignment.Left
     TopSub.ZIndex = 4
 
-    -- Ajout du bouton de fermeture (comme sur le Main Hub)
+    -- Bouton de fermeture
     local CloseBtn = Instance.new("TextButton", TopBar)
     CloseBtn.Size = UDim2.new(0, 28, 0, 28)
     CloseBtn.Position = UDim2.new(1, -38, 0.5, -14)
@@ -242,7 +243,7 @@ local function promptKey()
     KeyLabel.Position = UDim2.new(0, Pad, 0, 14)
     KeyLabel.Size = UDim2.new(1, -Pad*2, 0, 16)
     KeyLabel.BackgroundTransparency = 1
-    KeyLabel.Text = "CLE D'ACCES"
+    KeyLabel.Text = "ACCESS KEY"
     KeyLabel.TextColor3 = C.subtext
     KeyLabel.Font = Enum.Font.GothamBold
     KeyLabel.TextSize = 10
@@ -285,7 +286,7 @@ local function promptKey()
     Status.Position = UDim2.new(0, Pad, 0, 100)
     Status.Size = UDim2.new(1, -Pad*2, 0, 20)
     Status.BackgroundTransparency = 1
-    Status.Text = "Entre ta clé — utilise /genkey sur le Discord"
+    Status.Text = "Enter your key — use /genkey on Discord"
     Status.TextColor3 = C.subtext
     Status.Font = Enum.Font.GothamSemibold
     Status.TextSize = 12
@@ -296,21 +297,14 @@ local function promptKey()
     ValidBtn.Position = UDim2.new(0, Pad, 0, 128)
     ValidBtn.Size = UDim2.new(1, -Pad*2, 0, 38)
     ValidBtn.BackgroundColor3 = C.card
-    ValidBtn.Text = "   Valider la clé"
+    ValidBtn.Text = "Validate Key"
     ValidBtn.TextColor3 = C.text
     ValidBtn.Font = Enum.Font.GothamBold
     ValidBtn.TextSize = 14
-    ValidBtn.TextXAlignment = Enum.TextXAlignment.Left
+    ValidBtn.TextXAlignment = Enum.TextXAlignment.Center
     ValidBtn.BorderSizePixel = 0
     corner(ValidBtn, 9)
     local ValidStroke = stroke(ValidBtn, C.divider, 1, 0)
-
-    local ValidDot = Instance.new("Frame", ValidBtn)
-    ValidDot.Size = UDim2.new(0, 8, 0, 8)
-    ValidDot.Position = UDim2.new(1, -18, 0.5, -4)
-    ValidDot.BackgroundColor3 = C.faint
-    ValidDot.BorderSizePixel = 0
-    corner(ValidDot, 8)
 
     ValidBtn.MouseEnter:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.cardHov }) end)
     ValidBtn.MouseLeave:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.card }) end)
@@ -327,7 +321,7 @@ local function promptKey()
     DiscordBtn.Position = UDim2.new(0, Pad, 0, 188)
     DiscordBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
     DiscordBtn.BackgroundColor3 = C.discord
-    DiscordBtn.Text = "Rejoindre Discord"
+    DiscordBtn.Text = "Join Discord"
     DiscordBtn.TextColor3 = C.white
     DiscordBtn.Font = Enum.Font.GothamBold
     DiscordBtn.TextSize = 12
@@ -338,10 +332,10 @@ local function promptKey()
     DiscordBtn.MouseLeave:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discord }) end)
     DiscordBtn.MouseButton1Click:Connect(function()
         setclipboard(DISCORD_URL)
-        Status.Text = "Lien copié ! Colle-le dans ton navigateur."
+        Status.Text = "Link copied! Paste it in your browser."
         Status.TextColor3 = C.green
         task.delay(3, function()
-            Status.Text = "Entre ta clé — utilise /genkey sur le Discord"
+            Status.Text = "Enter your key — use /genkey on Discord"
             Status.TextColor3 = C.subtext
         end)
     end)
@@ -350,7 +344,7 @@ local function promptKey()
     YTBtn.Position = UDim2.new(0.5, 4, 0, 188)
     YTBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
     YTBtn.BackgroundColor3 = C.card
-    YTBtn.Text = "Tuto YouTube"
+    YTBtn.Text = "YouTube Tutorial"
     YTBtn.TextColor3 = C.subtext
     YTBtn.Font = Enum.Font.GothamSemibold
     YTBtn.TextSize = 12
@@ -359,15 +353,15 @@ local function promptKey()
     stroke(YTBtn, C.divider, 1, 0)
 
     local CSBadge = Instance.new("Frame", YTBtn)
-    CSBadge.Size = UDim2.new(0, 60, 0, 16)
-    CSBadge.Position = UDim2.new(1, -64, 0, 4)
+    CSBadge.Size = UDim2.new(0, 80, 0, 16)
+    CSBadge.Position = UDim2.new(1, -84, 0, 4)
     CSBadge.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     CSBadge.BorderSizePixel = 0
     corner(CSBadge, 4)
     local CSLabel = Instance.new("TextLabel", CSBadge)
     CSLabel.Size = UDim2.new(1, 0, 1, 0)
     CSLabel.BackgroundTransparency = 1
-    CSLabel.Text = "BIENTÔT"
+    CSLabel.Text = "COMING SOON"
     CSLabel.TextColor3 = C.subtext
     CSLabel.Font = Enum.Font.GothamBold
     CSLabel.TextSize = 8
@@ -380,24 +374,22 @@ local function promptKey()
     local function doValidate()
         local key = Input.Text:gsub("%s+", "")
         if key == "" then
-            Status.Text = "Entre une clé avant de valider"
+            Status.Text = "Enter a key before validating"
             Status.TextColor3 = C.red
             return
         end
 
-        ValidBtn.Text = "   Vérification en cours..."
+        ValidBtn.Text = "Validating..."
         ValidBtn.TextColor3 = C.subtext
-        tween(ValidDot, { BackgroundColor3 = C.yellow })
-        Status.Text = "Connexion au serveur..."
+        Status.Text = "Connecting to server..."
         Status.TextColor3 = C.yellow
 
         local valid, info = verifyKey(key, hwid)
 
         if valid then
-            ValidBtn.Text = "   Clé valide !"
+            ValidBtn.Text = "Key Accepted!"
             ValidBtn.TextColor3 = C.green
             tween(ValidBtn,    { BackgroundColor3 = Color3.fromRGB(25, 45, 30) })
-            tween(ValidDot,    { BackgroundColor3 = C.green })
             tween(ValidStroke, { Color = C.green })
             Status.Text = "[OK] " .. info
             Status.TextColor3 = C.green
@@ -468,15 +460,13 @@ local function promptKey()
             Gui:Destroy()
             validated = true
         else
-            ValidBtn.Text = "   Valider la clé"
+            ValidBtn.Text = "Validate Key"
             ValidBtn.TextColor3 = C.text
             tween(ValidBtn,    { BackgroundColor3 = C.card })
-            tween(ValidDot,    { BackgroundColor3 = C.red })
             tween(ValidStroke, { Color = C.red })
             Status.Text = "[X] " .. info
             Status.TextColor3 = C.red
             task.delay(2, function()
-                tween(ValidDot,    { BackgroundColor3 = C.faint })
                 tween(ValidStroke, { Color = C.divider })
             end)
         end
@@ -498,6 +488,4 @@ promptKey()
 
 -- ============================================================
 -- Ton script Comet Hub MM2 continue ICI. 
--- (N'oublie pas de retirer le "LOADING SCREEN" présent à la toute fin 
--- de ton script principal, car il est désormais géré ici !)
 -- ============================================================
