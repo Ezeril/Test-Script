@@ -538,7 +538,7 @@ local function makeTabBtn(def, index)
     ico.Size = UDim2.new(0, 14, 0, 14)
     ico.AnchorPoint = Vector2.new(0, 0.5)
     
-    ico.Position = UDim2.new(0, 12, 0.5, 4) 
+    ico.Position = UDim2.new(0, 12, 0.5, 0) 
     
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
