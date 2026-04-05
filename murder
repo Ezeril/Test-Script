@@ -46,7 +46,7 @@ local function getHWID()
 end
 local _selfHWID = getHWID()
 
--- ─── UI LIBRARY (PARTAGÉE KEY SYSTEM & HUB) ──────────────────
+-- ─── UI LIBRARY ──────────────────
 local C = {
     bg        = Color3.fromRGB(15,  15,  15),
     sidebar   = Color3.fromRGB(20,  20,  20),
@@ -77,7 +77,6 @@ local function corner(parent, radius)
     return c
 end
 
--- CORRECTION ICI : ApplyStrokeMode.Border ajouté pour éviter de déformer le texte
 local function stroke(parent, color, thickness, transparency)
     local s = Instance.new("UIStroke", parent)
     s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border 
@@ -87,7 +86,6 @@ local function stroke(parent, color, thickness, transparency)
     return s
 end
 
--- CORRECTION ICI AUSSI
 local function animatedStroke(parent, thickness)
     local s = Instance.new("UIStroke", parent)
     s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
@@ -213,7 +211,7 @@ end
 checkBanlist()
 
 -- ============================================================
---  KEY SYSTEM (EN ANGLAIS)
+--  KEY SYSTEM
 -- ============================================================
 local function verifyKey(key, hwid)
     local url = API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid)
@@ -499,7 +497,6 @@ local function promptKey()
             
             task.wait(1)
             
-            -- TRANSITION FLUIDE VERS L'ÉCRAN DE CHARGEMENT
             tween(TopBar, { BackgroundTransparency = 1 }, 0.3)
             tween(Body, { BackgroundTransparency = 1 }, 0.3)
             for _, v in pairs(Win:GetDescendants()) do
@@ -518,7 +515,6 @@ local function promptKey()
             tween(Win, { Size = UDim2.new(0, 300, 0, 160) }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
             task.wait(0.5)
 
-            -- WEBHOOK D'EXECUTION (Envoyé silencieusement)
             task.spawn(function()
                 if WEBHOOK_URL and WEBHOOK_URL ~= "" then
                     local req = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
@@ -548,7 +544,6 @@ local function promptKey()
                 end
             end)
 
-            -- CREATION UI CHARGEMENT
             local LoadLogo = Instance.new("ImageLabel", Win)
             LoadLogo.Size = UDim2.new(0, 60, 0, 60); LoadLogo.Position = UDim2.new(0.5, 0, 0.35, 0); LoadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
             LoadLogo.BackgroundTransparency = 1; LoadLogo.Image = "rbxassetid://131711664935136"; LoadLogo.ImageColor3 = C.white
@@ -571,7 +566,6 @@ local function promptKey()
             local BarFill = Instance.new("Frame", BarBG)
             BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = C.white; BarFill.BorderSizePixel = 0; corner(BarFill, 4)
 
-            -- ANIMATION DE CHARGEMENT
             tween(BarFill, {Size = UDim2.new(0.35, 0, 1, 0)}, 0.8); task.wait(0.8)
             LoadText.Text = "Loading MM2 modules..."
             tween(BarFill, {Size = UDim2.new(0.75, 0, 1, 0)}, 1.2); task.wait(1.2)
@@ -579,7 +573,6 @@ local function promptKey()
             tween(BarFill, {Size = UDim2.new(1, 0, 1, 0)}, 0.6); task.wait(0.6)
             LoadText.Text = "Welcome to Comet Hub!"; LoadText.TextColor3 = C.white; task.wait(0.6)
 
-            -- DISPARITION DU CHARGEMENT
             tween(Win, { Size = UDim2.new(0, 280, 0, 140), BackgroundTransparency = 1 }, 0.3)
             tween(Shadow, { ImageTransparency = 1 }, 0.3)
             tween(LoadLogo, { ImageTransparency = 1 }, 0.3)
@@ -627,7 +620,6 @@ local GetPlayerDataFn    = Remotes:WaitForChild("GetCurrentPlayerData")
 
 local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("Misc"):WaitForChild("PlayEmote")
 
--- ÉTATS
 local AutofarmStarted    = false
 local BagFull            = false
 local AntiAfkState       = false
@@ -657,7 +649,6 @@ local FALLBACK_COLORS = {
 }
 local ROLES = { Murderer = true, Sheriff = true, Innocent = true, Hero = true }
 
--- ─── MM2 LOGIC FUNCTIONS ──────────────────────────────────────
 local function getRoleColorByName(roleName)
     if RoleColorMap[roleName] then return RoleColorMap[roleName] end
     return FALLBACK_COLORS[roleName] or Color3.fromRGB(255, 255, 255)
@@ -731,7 +722,7 @@ local Win = Instance.new("Frame", ScreenGui)
 Win.Name = "MainWindow"
 Win.AnchorPoint = Vector2.new(0.5, 0.5)
 Win.Position = UDim2.new(0.5, 0, 0.5, 0)
-Win.Size = UDim2.new(0, 500, 0, 360) -- Taille initiale pour l'animation
+Win.Size = UDim2.new(0, 500, 0, 360)
 Win.BackgroundColor3 = C.bg
 Win.BorderSizePixel = 0
 Win.Active = true
@@ -1121,7 +1112,6 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
     return container
 end
 
--- ─── UI IMPLEMENTATION: AUTOFARM ─────────────────────────────
 sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 
 makeToggle(autoPage, "Start Autofarm", 1, function(_, state)
@@ -1169,7 +1159,6 @@ makeButton(autoPage, "Teleport to Map", 5, function()
     end
 end)
 
--- ─── UI IMPLEMENTATION: VISUALS ──────────────────────────────
 sectionLabel(visPage, "ESP & CHAMS", 0)
 
 local highlightCache = {}
@@ -1284,7 +1273,6 @@ makeToggle(visPage, "3D Rendering (Future)", 4, function(_, state)
     Lighting.Technology    = state and Enum.Technology.Future or Enum.Technology.Compatibility
 end)
 
--- ─── UI IMPLEMENTATION: MISC ─────────────────────────────────
 sectionLabel(miscPage, "PLAYER UTILITIES", 0)
 
 local function AntiAFK()
@@ -1317,7 +1305,7 @@ makeToggle(miscPage, "Improve FPS", 2, function(_, state)
     end
 end)
 
-makeToggle(miscPage, "Anti-Fling (Ghost Mode)", 3, function(_, state)
+makeToggle(miscPage, "Anti-Fling", 3, function(_, state)
     AntiFlingEnabled = state
 end)
 
@@ -1360,7 +1348,6 @@ makeToggle(miscPage, "Auto Play Emote", 6, function(_, state)
     AutoEmoteEnabled = state
 end)
 
--- ─── UI IMPLEMENTATION: INFO ─────────────────────────────────
 local function infoCard(parent, order, key, value)
     local card = Instance.new("Frame", parent)
     card.LayoutOrder = order; card.Size = UDim2.new(1, 0, 0, 52); card.BackgroundColor3 = C.card
@@ -1379,7 +1366,6 @@ infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
 sectionLabel(infoPage, "SUPPORT", 10)
 infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
 
--- ─── CORE LOOPS & HOOKS ──────────────────────────────────────
 ShowRoleRemote.OnClientEvent:Connect(function(data)
     if type(data) ~= "table" then return end
     if data.Roles then RoleColorMap = data.Roles end
@@ -1476,7 +1462,7 @@ local function findNearestCoin(container)
 end
 
 -- ============================================================
--- NOUVELLE LOGIQUE D'AUTOFARM : Sans blocages + Lobby Check
+-- LOGIQUE D'AUTOFARM
 -- ============================================================
 
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
@@ -1504,7 +1490,6 @@ RoundEndEvent.OnClientEvent:Connect(function()
     if PlayerChamsEnabled then refreshAllChams() end
 end)
 
--- Boucle combinée pour l'Anti-Fling ET le Noclip d'Autofarm
 RunService.Stepped:Connect(function()
     if AntiFlingEnabled then
         for _, p in ipairs(Players:GetPlayers()) do
@@ -1532,7 +1517,6 @@ task.spawn(function()
     while true do
         task.wait(0.05)
         
-        -- Si désactivé, sac plein, mort OU qu'on est pas dans la game (lobby)
         if not AutofarmStarted or BagFull or not isPlayerAlive() or not isPlayingRound() then
             workspace.Gravity = DefaultGravity
             task.wait(0.3)
@@ -1586,14 +1570,12 @@ task.spawn(function()
     end
 end)
 
--- ─── AUTO GRAB GUN LOOP (Correction Définitive : Check Lobby/Mort) ────────
 task.spawn(function()
     while true do
         task.wait(0.25)
         
         local myRole = LocalRole or PlayerRoleCache[Player.Name]
         
-        -- AJOUT : isPlayingRound() s'assure que tu n'es pas considéré comme "mort" par le jeu
         if AutoGrabGunEnabled and isPlayingRound() and isPlayerAlive() and myRole == "Innocent" then
             local char = Player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
@@ -1620,7 +1602,6 @@ task.spawn(function()
     end
 end)
 
--- ─── UI CONTROLS ─────────────────────────────────────────────
 local OpenBtn = Instance.new("ImageButton", ScreenGui)
 OpenBtn.Name = "OpenBtn"
 OpenBtn.Size = UDim2.new(0, 46, 0, 46); OpenBtn.Position = UDim2.new(0, 20, 0.5, -23)
@@ -1661,6 +1642,5 @@ end)
 switchTab("Autofarm")
 task.spawn(fetchAllRoles)
 
--- Affichage fluide du Hub Principal APRES validation de la clé
 Win.Visible = true
 tween(Win, {Size = UDim2.new(0, 560, 0, 400)}, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
