@@ -1,5 +1,7 @@
 -- ============================================================
---  COMET HUB - KEY SYSTEM
+--  COMET HUB - KEY SYSTEM (MM2 HUB EDITION)
+--  + Design unifié avec le menu principal
+--  + Transition fluide vers l'écran de chargement
 -- ============================================================
 
 local API_URL     = "https://cometkeyapi.netlify.app/verify"
@@ -26,54 +28,54 @@ local function verifyKey(key, hwid)
     local url = API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid)
     
     local ok, result = pcall(function()
-        -- 1. On tente d'utiliser la fonction de l'executeur en priorité
         if type(request) == "function" then
-            local response = request({
-                Url = url,
-                Method = "GET"
-            })
-            return response.Body
+            return request({Url = url, Method = "GET"}).Body
         elseif type(http_request) == "function" then
-            local response = http_request({
-                Url = url,
-                Method = "GET"
-            })
-            return response.Body
+            return http_request({Url = url, Method = "GET"}).Body
         else
-            -- 2. Fallback classique (si tu testes dans Roblox Studio côté serveur)
             return HttpService:GetAsync(url, true)
         end
     end)
 
-    if not ok then return false, "Erreur reseau (Requete bloquee)" end
+    if not ok then return false, "Erreur réseau (Requête bloquée)" end
 
     local data
     pcall(function() data = HttpService:JSONDecode(result) end)
     
-    if not data then return false, "Reponse invalide de l'API" end
+    if not data then return false, "Réponse invalide de l'API" end
 
-    -- La suite de ton code d'origine...
     if data.valid then
         local info = data.bound
-            and ("Appareil lie · " .. (data.expiresIn or "?") .. " min restantes")
+            and ("Appareil lié · " .. (data.expiresIn or "?") .. " min restantes")
             or  ((data.expiresIn or "?") .. " min restantes")
         return true, info
     end
 
     local reasons = {
-        KEY_NOT_FOUND  = "Cle introuvable",
-        KEY_EXPIRED    = "Cle expiree — utilise /genkey",
-        HWID_MISMATCH  = "Cle liee a un autre appareil",
+        KEY_NOT_FOUND  = "Clé introuvable",
+        KEY_EXPIRED    = "Clé expirée — utilise /genkey",
+        HWID_MISMATCH  = "Clé liée à un autre appareil",
         NO_HWID        = "Erreur HWID manquant",
-        NO_KEY         = "Aucune cle fournie",
+        NO_KEY         = "Aucune clé fournie",
     }
     return false, reasons[data.reason] or (data.reason or "Erreur inconnue")
 end
 
+-- ============================================================
+--  FONCTIONS UI (CALQUÉES SUR LE MAIN HUB)
+-- ============================================================
 local function corner(parent, radius)
     local c = Instance.new("UICorner", parent)
     c.CornerRadius = UDim.new(0, radius or 10)
     return c
+end
+
+local function stroke(parent, color, thickness, transparency)
+    local s = Instance.new("UIStroke", parent)
+    s.Color = color or Color3.fromRGB(150, 150, 150)
+    s.Thickness = thickness or 1
+    s.Transparency = transparency or 0.55
+    return s
 end
 
 local function tween(obj, props, t)
@@ -148,7 +150,7 @@ local function promptKey()
     Win.BorderSizePixel = 0
     Win.Active = true
     Win.Draggable = true
-    Win.ClipsDescendants = false
+    Win.ClipsDescendants = true
     Win.ZIndex = 2
     corner(Win, 14)
     animatedStroke(Win, 1.5)
@@ -210,6 +212,22 @@ local function promptKey()
     TopSub.TextXAlignment = Enum.TextXAlignment.Left
     TopSub.ZIndex = 4
 
+    -- Ajout du bouton de fermeture (comme sur le Main Hub)
+    local CloseBtn = Instance.new("TextButton", TopBar)
+    CloseBtn.Size = UDim2.new(0, 28, 0, 28)
+    CloseBtn.Position = UDim2.new(1, -38, 0.5, -14)
+    CloseBtn.BackgroundColor3 = C.card
+    CloseBtn.Text = "X"
+    CloseBtn.TextColor3 = C.white
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = 13
+    CloseBtn.BorderSizePixel = 0
+    CloseBtn.ZIndex = 5
+    corner(CloseBtn, 7)
+    CloseBtn.MouseEnter:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.cardHov }) end)
+    CloseBtn.MouseLeave:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.card }) end)
+    CloseBtn.MouseButton1Click:Connect(function() Gui:Destroy() end)
+
     -- Body
     local Body = Instance.new("Frame", Win)
     Body.Position = UDim2.new(0, 0, 0, 46)
@@ -229,18 +247,14 @@ local function promptKey()
     KeyLabel.Font = Enum.Font.GothamBold
     KeyLabel.TextSize = 10
     KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-    KeyLabel.ZIndex = 3
 
     local InputFrame = Instance.new("Frame", Body)
     InputFrame.Position = UDim2.new(0, Pad, 0, 34)
     InputFrame.Size = UDim2.new(1, -Pad*2, 0, 42)
     InputFrame.BackgroundColor3 = C.input
     InputFrame.BorderSizePixel = 0
-    InputFrame.ZIndex = 3
     corner(InputFrame, 9)
-    local InputStroke = Instance.new("UIStroke", InputFrame)
-    InputStroke.Color = C.divider
-    InputStroke.Thickness = 1
+    local InputStroke = stroke(InputFrame, C.divider, 1, 0)
 
     local Input = Instance.new("TextBox", InputFrame)
     Input.Size = UDim2.new(1, -16, 1, 0)
@@ -253,14 +267,9 @@ local function promptKey()
     Input.Font = Enum.Font.Code
     Input.TextSize = 15
     Input.ClearTextOnFocus = false
-    Input.ZIndex = 4
 
-    Input.Focused:Connect(function()
-        tween(InputStroke, { Color = Color3.fromRGB(100, 100, 100) })
-    end)
-    Input.FocusLost:Connect(function()
-        tween(InputStroke, { Color = C.divider })
-    end)
+    Input.Focused:Connect(function() tween(InputStroke, { Color = Color3.fromRGB(100, 100, 100) }) end)
+    Input.FocusLost:Connect(function() tween(InputStroke, { Color = C.divider }) end)
 
     local HwidLabel = Instance.new("TextLabel", Body)
     HwidLabel.Position = UDim2.new(0, Pad, 0, 82)
@@ -271,42 +280,36 @@ local function promptKey()
     HwidLabel.Font = Enum.Font.Gotham
     HwidLabel.TextSize = 10
     HwidLabel.TextXAlignment = Enum.TextXAlignment.Left
-    HwidLabel.ZIndex = 3
 
     local Status = Instance.new("TextLabel", Body)
     Status.Position = UDim2.new(0, Pad, 0, 100)
     Status.Size = UDim2.new(1, -Pad*2, 0, 20)
     Status.BackgroundTransparency = 1
-    Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
+    Status.Text = "Entre ta clé — utilise /genkey sur le Discord"
     Status.TextColor3 = C.subtext
     Status.Font = Enum.Font.GothamSemibold
     Status.TextSize = 12
     Status.TextXAlignment = Enum.TextXAlignment.Left
-    Status.ZIndex = 3
 
     -- Bouton Valider
     local ValidBtn = Instance.new("TextButton", Body)
     ValidBtn.Position = UDim2.new(0, Pad, 0, 128)
     ValidBtn.Size = UDim2.new(1, -Pad*2, 0, 38)
     ValidBtn.BackgroundColor3 = C.card
-    ValidBtn.Text = "   Valider la cle"     -- ✓ retiré car non rendu par Roblox
+    ValidBtn.Text = "   Valider la clé"
     ValidBtn.TextColor3 = C.text
     ValidBtn.Font = Enum.Font.GothamBold
     ValidBtn.TextSize = 14
     ValidBtn.TextXAlignment = Enum.TextXAlignment.Left
     ValidBtn.BorderSizePixel = 0
-    ValidBtn.ZIndex = 3
     corner(ValidBtn, 9)
-    local ValidStroke = Instance.new("UIStroke", ValidBtn)
-    ValidStroke.Color = C.divider
-    ValidStroke.Thickness = 1
+    local ValidStroke = stroke(ValidBtn, C.divider, 1, 0)
 
     local ValidDot = Instance.new("Frame", ValidBtn)
     ValidDot.Size = UDim2.new(0, 8, 0, 8)
     ValidDot.Position = UDim2.new(1, -18, 0.5, -4)
     ValidDot.BackgroundColor3 = C.faint
     ValidDot.BorderSizePixel = 0
-    ValidDot.ZIndex = 4
     corner(ValidDot, 8)
 
     ValidBtn.MouseEnter:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.cardHov }) end)
@@ -318,9 +321,8 @@ local function promptKey()
     Div.Size = UDim2.new(1, -Pad*2, 0, 1)
     Div.BackgroundColor3 = C.divider
     Div.BorderSizePixel = 0
-    Div.ZIndex = 3
 
-    -- Bouton Discord
+    -- Boutons du bas
     local DiscordBtn = Instance.new("TextButton", Body)
     DiscordBtn.Position = UDim2.new(0, Pad, 0, 188)
     DiscordBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
@@ -329,26 +331,21 @@ local function promptKey()
     DiscordBtn.TextColor3 = C.white
     DiscordBtn.Font = Enum.Font.GothamBold
     DiscordBtn.TextSize = 12
-    DiscordBtn.TextXAlignment = Enum.TextXAlignment.Center
     DiscordBtn.BorderSizePixel = 0
-    DiscordBtn.ZIndex = 3
     corner(DiscordBtn, 9)
 
     DiscordBtn.MouseEnter:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discordH }) end)
     DiscordBtn.MouseLeave:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discord }) end)
     DiscordBtn.MouseButton1Click:Connect(function()
-        tween(DiscordBtn, { BackgroundColor3 = Color3.fromRGB(55, 65, 160) }, 0.1)
-        task.delay(0.15, function() tween(DiscordBtn, { BackgroundColor3 = C.discord }, 0.1) end)
         setclipboard(DISCORD_URL)
-        Status.Text = "Lien copie ! Colle-le dans ton navigateur."
+        Status.Text = "Lien copié ! Colle-le dans ton navigateur."
         Status.TextColor3 = C.green
         task.delay(3, function()
-            Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
+            Status.Text = "Entre ta clé — utilise /genkey sur le Discord"
             Status.TextColor3 = C.subtext
         end)
     end)
 
-    -- Bouton YouTube Coming Soon
     local YTBtn = Instance.new("TextButton", Body)
     YTBtn.Position = UDim2.new(0.5, 4, 0, 188)
     YTBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
@@ -357,55 +354,38 @@ local function promptKey()
     YTBtn.TextColor3 = C.subtext
     YTBtn.Font = Enum.Font.GothamSemibold
     YTBtn.TextSize = 12
-    YTBtn.TextXAlignment = Enum.TextXAlignment.Center
     YTBtn.BorderSizePixel = 0
-    YTBtn.ZIndex = 3
     corner(YTBtn, 9)
-    local YTStroke = Instance.new("UIStroke", YTBtn)
-    YTStroke.Color = C.divider
-    YTStroke.Thickness = 1
+    stroke(YTBtn, C.divider, 1, 0)
 
     local CSBadge = Instance.new("Frame", YTBtn)
-    CSBadge.Size = UDim2.new(0, 76, 0, 16)
-    CSBadge.Position = UDim2.new(1, -80, 0, 4)
+    CSBadge.Size = UDim2.new(0, 60, 0, 16)
+    CSBadge.Position = UDim2.new(1, -64, 0, 4)
     CSBadge.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     CSBadge.BorderSizePixel = 0
-    CSBadge.ZIndex = 5
     corner(CSBadge, 4)
     local CSLabel = Instance.new("TextLabel", CSBadge)
     CSLabel.Size = UDim2.new(1, 0, 1, 0)
     CSLabel.BackgroundTransparency = 1
-    CSLabel.Text = "BIENTOT"
+    CSLabel.Text = "BIENTÔT"
     CSLabel.TextColor3 = C.subtext
     CSLabel.Font = Enum.Font.GothamBold
-    CSLabel.TextSize = 9
-    CSLabel.ZIndex = 6
+    CSLabel.TextSize = 8
 
     YTBtn.MouseEnter:Connect(function() tween(YTBtn, { BackgroundColor3 = C.cardHov }) end)
     YTBtn.MouseLeave:Connect(function() tween(YTBtn, { BackgroundColor3 = C.card }) end)
-    YTBtn.MouseButton1Click:Connect(function()
-        tween(YTBtn, { BackgroundColor3 = Color3.fromRGB(55, 55, 55) }, 0.1)
-        task.delay(0.15, function() tween(YTBtn, { BackgroundColor3 = C.card }, 0.1) end)
-        Status.Text = "Tuto pas encore dispo — reviens bientot !"
-        Status.TextColor3 = C.yellow
-        task.delay(3, function()
-            Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
-            Status.TextColor3 = C.subtext
-        end)
-    end)
 
-    -- Logique validation
     local validated = false
 
     local function doValidate()
         local key = Input.Text:gsub("%s+", "")
         if key == "" then
-            Status.Text = "Entre une cle avant de valider"
+            Status.Text = "Entre une clé avant de valider"
             Status.TextColor3 = C.red
             return
         end
 
-        ValidBtn.Text = "   Verification en cours..."
+        ValidBtn.Text = "   Vérification en cours..."
         ValidBtn.TextColor3 = C.subtext
         tween(ValidDot, { BackgroundColor3 = C.yellow })
         Status.Text = "Connexion au serveur..."
@@ -414,20 +394,81 @@ local function promptKey()
         local valid, info = verifyKey(key, hwid)
 
         if valid then
-            ValidBtn.Text = "   Cle valide !"
+            ValidBtn.Text = "   Clé valide !"
             ValidBtn.TextColor3 = C.green
             tween(ValidBtn,    { BackgroundColor3 = Color3.fromRGB(25, 45, 30) })
             tween(ValidDot,    { BackgroundColor3 = C.green })
             tween(ValidStroke, { Color = C.green })
             Status.Text = "[OK] " .. info
             Status.TextColor3 = C.green
-            task.wait(1.2)
-            tween(Win, { Position = UDim2.new(0.5, 0, 0.45, 0), BackgroundTransparency = 1 }, 0.35)
-            task.wait(0.35)
+            
+            task.wait(1)
+            
+            -- TRANSITION FLUIDE VERS L'ÉCRAN DE CHARGEMENT
+            tween(TopBar, { BackgroundTransparency = 1 }, 0.3)
+            tween(Body, { BackgroundTransparency = 1 }, 0.3)
+            for _, v in pairs(Win:GetDescendants()) do
+                if v:IsA("TextLabel") then tween(v, { TextTransparency = 1 }, 0.3)
+                elseif v:IsA("TextBox") then tween(v, { TextTransparency = 1 }, 0.3)
+                elseif v:IsA("TextButton") then tween(v, { BackgroundTransparency = 1, TextTransparency = 1 }, 0.3)
+                elseif v:IsA("Frame") and v ~= Win then tween(v, { BackgroundTransparency = 1 }, 0.3)
+                elseif v:IsA("UIStroke") then tween(v, { Transparency = 1 }, 0.3)
+                elseif v:IsA("ImageLabel") and v ~= Shadow then tween(v, { ImageTransparency = 1 }, 0.3)
+                end
+            end
+            
+            task.wait(0.3)
+            TopBar.Visible = false
+            Body.Visible = false
+            
+            -- Morph de la fenêtre
+            tween(Win, { Size = UDim2.new(0, 300, 0, 160) }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+            task.wait(0.5)
+
+            -- Création des éléments de l'écran de chargement
+            local LoadLogo = Instance.new("ImageLabel", Win)
+            LoadLogo.Size = UDim2.new(0, 60, 0, 60); LoadLogo.Position = UDim2.new(0.5, 0, 0.35, 0); LoadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+            LoadLogo.BackgroundTransparency = 1; LoadLogo.Image = "rbxassetid://131711664935136"; LoadLogo.ImageColor3 = C.white
+            LoadLogo.ImageTransparency = 1
+            tween(LoadLogo, { ImageTransparency = 0 }, 0.3)
+
+            local LoadText = Instance.new("TextLabel", Win)
+            LoadText.Size = UDim2.new(1, 0, 0, 20); LoadText.Position = UDim2.new(0, 0, 0.65, 0)
+            LoadText.BackgroundTransparency = 1; LoadText.Text = "Initializing MM2 Autofarm..."; LoadText.TextColor3 = C.subtext
+            LoadText.Font = Enum.Font.GothamSemibold; LoadText.TextSize = 12
+            LoadText.TextTransparency = 1
+            tween(LoadText, { TextTransparency = 0 }, 0.3)
+
+            local BarBG = Instance.new("Frame", Win)
+            BarBG.Size = UDim2.new(0, 220, 0, 6); BarBG.Position = UDim2.new(0.5, 0, 0.85, 0); BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
+            BarBG.BackgroundColor3 = C.card; BarBG.BorderSizePixel = 0; corner(BarBG, 4)
+            BarBG.BackgroundTransparency = 1
+            tween(BarBG, { BackgroundTransparency = 0 }, 0.3)
+
+            local BarFill = Instance.new("Frame", BarBG)
+            BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = C.white; BarFill.BorderSizePixel = 0; corner(BarFill, 4)
+
+            -- Animation de chargement
+            tween(BarFill, {Size = UDim2.new(0.35, 0, 1, 0)}, 0.8); task.wait(0.8)
+            LoadText.Text = "Loading MM2 modules..."
+            tween(BarFill, {Size = UDim2.new(0.75, 0, 1, 0)}, 1.2); task.wait(1.2)
+            LoadText.Text = "Bypassing anti-cheat..."
+            tween(BarFill, {Size = UDim2.new(1, 0, 1, 0)}, 0.6); task.wait(0.6)
+            LoadText.Text = "Welcome to Comet Hub!"; LoadText.TextColor3 = C.white; task.wait(0.6)
+
+            -- Fin du chargement
+            tween(Win, { Size = UDim2.new(0, 280, 0, 140), BackgroundTransparency = 1 }, 0.3)
+            tween(Shadow, { ImageTransparency = 1 }, 0.3)
+            tween(LoadLogo, { ImageTransparency = 1 }, 0.3)
+            tween(LoadText, { TextTransparency = 1 }, 0.3)
+            tween(BarBG, { BackgroundTransparency = 1 }, 0.3)
+            tween(BarFill, { BackgroundTransparency = 1 }, 0.3)
+            
+            task.wait(0.3)
             Gui:Destroy()
             validated = true
         else
-            ValidBtn.Text = "   Valider la cle"
+            ValidBtn.Text = "   Valider la clé"
             ValidBtn.TextColor3 = C.text
             tween(ValidBtn,    { BackgroundColor3 = C.card })
             tween(ValidDot,    { BackgroundColor3 = C.red })
@@ -454,4 +495,9 @@ local function promptKey()
 end
 
 promptKey()
--- Ton script continue ici uniquement si la cle est valide
+
+-- ============================================================
+-- Ton script Comet Hub MM2 continue ICI. 
+-- (N'oublie pas de retirer le "LOADING SCREEN" présent à la toute fin 
+-- de ton script principal, car il est désormais géré ici !)
+-- ============================================================
