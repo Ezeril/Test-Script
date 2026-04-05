@@ -129,13 +129,6 @@ local function showBanScreen(reason, date)
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = CoreGui
 
-    local overlay = Instance.new("Frame", gui)
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    overlay.BackgroundTransparency = 0.45
-    overlay.BorderSizePixel = 0
-    overlay.ZIndex = 200
-
     local frame = Instance.new("Frame", gui)
     frame.Size = UDim2.new(0, 360, 0, 220)
     frame.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -252,13 +245,6 @@ local function promptKey()
     Gui.ResetOnSpawn = false
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     Gui.Parent = CoreGui
-
-    local Overlay = Instance.new("Frame", Gui)
-    Overlay.Size = UDim2.new(1, 0, 1, 0)
-    Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Overlay.BackgroundTransparency = 0.5
-    Overlay.BorderSizePixel = 0
-    Overlay.ZIndex = 1
 
     local Win = Instance.new("Frame", Gui)
     Win.Name = "KeyWindow"
@@ -944,7 +930,7 @@ local function makeTabBtn(def, index)
     ico.Name = "TabIcon"
     ico.Size = UDim2.new(0, 14, 0, 14)
     ico.AnchorPoint = Vector2.new(0, 0.5)
-    ico.Position = UDim2.new(0, 12, 0.5, 4) 
+    ico.Position = UDim2.new(0, 12, 0.5, 0) 
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
     ico.ImageColor3 = C.subtext
