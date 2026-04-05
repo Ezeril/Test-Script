@@ -525,9 +525,9 @@ local function makeTabBtn(def, index)
 
     local ico = Instance.new("ImageLabel", btn)
     ico.Name = "TabIcon"
-    ico.Size = UDim2.new(0, 12, 0, 12)
+    ico.Size = UDim2.new(0, 14, 0, 14)
     -- On recentre l'icône par rapport à sa nouvelle taille (-8 au lieu de -10)
-    ico.Position = UDim2.new(0, 12, 0.5, -8)
+    ico.Position = UDim2.new(0, 12, 0.5, -7)
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
     ico.ImageColor3 = C.subtext
