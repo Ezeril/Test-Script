@@ -1,11 +1,5 @@
 -- ============================================================
---  MM2 COMET HUB Beta - Silent Auto-Detect & Dropdown UI
---  + Key System (API Validation) en Anglais (Bouton Centré)
---  + Détection automatique 100% invisible
---  + Menu déroulant complet pour les Emotes
---  + Webhook & HWID Ban System
---  + Image Tabs, Fixed Autofarm & Teleport Buttons
---  + CORRECTION VISUELLE : UIStroke sur les bordures (Textes nets)
+--  MM2 COMET HUB Beta
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
