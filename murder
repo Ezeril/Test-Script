@@ -531,7 +531,7 @@ local function makeTabBtn(def, index)
     -- C'EST ICI QUE ÇA SE RÈGLE :
     -- Le "3" à la fin descend l'image de 3 pixels. 
     -- Si c'est trop bas, mets 2. Si c'est trop haut, mets 4.
-    ico.Position = UDim2.new(0, 12, 0.5, 1) 
+    ico.Position = UDim2.new(0, 12, 0.5, 0) 
     
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
