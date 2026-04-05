@@ -479,10 +479,10 @@ Content.ClipsDescendants = true
 
 local tabs = {}
 local TAB_DEFS = {
-    { name = "Autofarm", icon = "rbxassetid://124802659470696" },
-    { name = "Visuals",  icon = "rbxassetid://107024936324988" },
-    { name = "Misc",     icon = "rbxassetid://113349909101907" },
-    { name = "Info",     icon = "rbxassetid://77422160474065"  },
+    { name = "Autofarm", icon = "rbxassetid://115667339718278" },
+    { name = "Visuals",  icon = "rbxassetid://77197956939533" },
+    { name = "Misc",     icon = "rbxassetid://139117339338967" },
+    { name = "Info",     icon = "rbxassetid://134469381681560"  },
 }
 
 local function makeTabPage(name)
