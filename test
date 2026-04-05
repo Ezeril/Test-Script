@@ -4,7 +4,7 @@
 --  Communicates with MongoDB via Express API
 -- ============================================================
 
-local API_URL     = "https://TON_DOMAINE.wispbyte.com/verify"
+local API_URL     = "https://cometkeyapi.netlify.app/verify"
 local DISCORD_URL = "https://discord.gg/NkYSkdAkey"
 
 -- ─── Services ────────────────────────────────────────────────
