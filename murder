@@ -244,81 +244,12 @@ local function verifyKey(key, hwid)
     return false, reasons[data.reason] or (data.reason or "Unknown Error")
 end
 
-local KEY_FILE = "CometHub_MM2_Key.txt"
-
 local function promptKey()
     local Gui = Instance.new("ScreenGui")
     Gui.Name = "CometKeySystem"
     Gui.ResetOnSpawn = false
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     Gui.Parent = CoreGui
-
-    -- ==========================================
-    -- 1. VÉRIFICATION AUTOMATIQUE (AUTO-LOGIN)
-    -- ==========================================
-    if isfile and readfile and isfile(KEY_FILE) then
-        local savedKey = readfile(KEY_FILE)
-        local valid, info = verifyKey(savedKey, _selfHWID)
-        
-        if valid then
-            -- Si la clé sauvegardée est valide, on fait juste l'écran de chargement !
-            local Win = Instance.new("Frame", Gui)
-            Win.Size = UDim2.new(0, 300, 0, 160)
-            Win.AnchorPoint = Vector2.new(0.5, 0.5)
-            Win.Position = UDim2.new(0.5, 0, 0.5, 0)
-            Win.BackgroundColor3 = C.bg
-            Win.BorderSizePixel = 0
-            corner(Win, 14)
-            animatedStroke(Win, 1.5)
-
-            local LoadLogo = Instance.new("ImageLabel", Win)
-            LoadLogo.Size = UDim2.new(0, 60, 0, 60); LoadLogo.Position = UDim2.new(0.5, 0, 0.35, 0); LoadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
-            LoadLogo.BackgroundTransparency = 1; LoadLogo.Image = "rbxassetid://131711664935136"; LoadLogo.ImageColor3 = C.white
-
-            local LoadText = Instance.new("TextLabel", Win)
-            LoadText.Size = UDim2.new(1, 0, 0, 20); LoadText.Position = UDim2.new(0, 0, 0.65, 0)
-            LoadText.BackgroundTransparency = 1; LoadText.Text = "Auto-Login Successful..."
-            LoadText.TextColor3 = C.subtext
-            LoadText.Font = Enum.Font.GothamSemibold; LoadText.TextSize = 12
-
-            local BarBG = Instance.new("Frame", Win)
-            BarBG.Size = UDim2.new(0, 220, 0, 6); BarBG.Position = UDim2.new(0.5, 0, 0.85, 0); BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
-            BarBG.BackgroundColor3 = C.card; BarBG.BorderSizePixel = 0; corner(BarBG, 4)
-
-            local BarFill = Instance.new("Frame", BarBG)
-            BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = C.white; BarFill.BorderSizePixel = 0; corner(BarFill, 4)
-
-            tween(BarFill, {Size = UDim2.new(0.5, 0, 1, 0)}, 0.5)
-            task.wait(0.5)
-            LoadText.Text = "Loading MM2 modules..."
-            tween(BarFill, {Size = UDim2.new(1, 0, 1, 0)}, 0.5)
-            task.wait(0.5)
-            LoadText.Text = "Welcome back to Comet Hub!"; LoadText.TextColor3 = C.white
-            task.wait(0.4)
-
-            tween(Win, { Size = UDim2.new(0, 280, 0, 140), BackgroundTransparency = 1 }, 0.3)
-            for _, v in pairs(Win:GetDescendants()) do
-                if v:IsA("TextLabel") then tween(v, { TextTransparency = 1 }, 0.3)
-                elseif v:IsA("ImageLabel") then tween(v, { ImageTransparency = 1 }, 0.3)
-                elseif v:IsA("Frame") and v ~= Win then tween(v, { BackgroundTransparency = 1 }, 0.3)
-                elseif v:IsA("UIStroke") and v.Parent ~= Win then tween(v, { Transparency = 1 }, 0.3)
-                end
-            end
-            task.wait(0.3)
-            Gui:Destroy()
-            return -- On quitte la fonction, l'utilisateur est connecté !
-        end
-    end
-
-    -- ==========================================
-    -- 2. SI PAS DE CLÉ OU CLÉ EXPIRÉE -> MENU UI
-    -- ==========================================
-    local Overlay = Instance.new("Frame", Gui)
-    Overlay.Size = UDim2.new(1, 0, 1, 0)
-    Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    Overlay.BackgroundTransparency = 0.5
-    Overlay.BorderSizePixel = 0
-    Overlay.ZIndex = 1
 
     local Win = Instance.new("Frame", Gui)
     Win.Name = "KeyWindow"
@@ -559,11 +490,6 @@ local function promptKey()
         local valid, info = verifyKey(key, _selfHWID)
 
         if valid then
-            -- SAUVEGARDE DE LA CLÉ SUR LE PC
-            if writefile then
-                pcall(function() writefile(KEY_FILE, key) end)
-            end
-
             ValidBtn.Text = "Key Accepted!"
             ValidBtn.TextColor3 = C.green
             tween(ValidBtn,    { BackgroundColor3 = Color3.fromRGB(25, 45, 30) })
