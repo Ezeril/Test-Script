@@ -478,10 +478,10 @@ Content.ClipsDescendants = true
 
 local tabs = {}
 local TAB_DEFS = {
-    { name = "Autofarm", icon = "⚡" },
-    { name = "Visuals",  icon = "👁" },
-    { name = "Misc",     icon = "⚙" },
-    { name = "Info",     icon = "ℹ" },
+    { name = "Autofarm", icon = "rbxassetid://124802659470696" },
+    { name = "Visuals",  icon = "rbxassetid://107024936324988" },
+    { name = "Misc",     icon = "rbxassetid://113349909101907" },
+    { name = "Info",     icon = "rbxassetid://77422160474065"  },
 }
 
 local function makeTabPage(name)
@@ -513,14 +513,27 @@ local function makeTabBtn(def, index)
     btn.Size = UDim2.new(1, 0, 0, 38)
     btn.BackgroundColor3 = C.card
     btn.BackgroundTransparency = 1
-    btn.Text = def.icon .. "  " .. def.name
+    btn.Text = "          " .. def.name 
     btn.TextColor3 = C.subtext
     btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 12
     btn.TextXAlignment = Enum.TextXAlignment.Left
     btn.BorderSizePixel = 0
     corner(btn, 8)
-    applyPadding(btn, 0, 0, 10, 0)
+
+    local ico = Instance.new("ImageLabel", btn)
+    ico.Size = UDim2.new(0, 18, 0, 18)
+    ico.Position = UDim2.new(0, 10, 0.5, -9)
+    ico.BackgroundTransparency = 1
+    ico.Image = def.icon
+    ico.ImageColor3 = C.subtext
+    ico.ZIndex = 3
+
+    -- Animation de couleur pour l'icône aussi
+    btn:GetPropertyChangedSignal("TextColor3"):Connect(function()
+        ico.ImageColor3 = btn.TextColor3
+    end)
+
     return btn
 end
 
