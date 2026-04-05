@@ -1,0 +1,448 @@
+-- ============================================================
+--  COMET HUB - KEY SYSTEM
+--  UI style matching Comet Hub (dark, Gotham, animated stroke)
+--  Communicates with MongoDB via Express API
+-- ============================================================
+
+local API_URL     = "https://TON_DOMAINE.wispbyte.com/verify"
+local DISCORD_URL = "https://discord.gg/NkYSkdAkey"
+
+-- ─── Services ────────────────────────────────────────────────
+local Players         = game:GetService("Players")
+local TweenService    = game:GetService("TweenService")
+local RunService      = game:GetService("RunService")
+local HttpService     = game:GetService("HttpService")
+local CoreGui         = game:GetService("CoreGui")
+local Player          = Players.LocalPlayer
+
+-- ─── HWID (compatible tous executeurs) ───────────────────────
+local function getHWID()
+    if getmachineidentity then return tostring(getmachineidentity()) end
+    if gethwid            then return tostring(gethwid())            end
+    local ok, id = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    if ok and id and id ~= "" then return id end
+    return tostring(Player.UserId)
+end
+
+-- ─── Verification API ────────────────────────────────────────
+local function verifyKey(key, hwid)
+    local ok, result = pcall(function()
+        return HttpService:GetAsync(
+            API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid),
+            true
+        )
+    end)
+    if not ok then return false, "Erreur reseau" end
+
+    local data
+    pcall(function() data = HttpService:JSONDecode(result) end)
+    if not data then return false, "Reponse invalide" end
+
+    if data.valid then
+        local info = data.bound
+            and ("Appareil lie · " .. (data.expiresIn or "?") .. " min restantes")
+            or  ((data.expiresIn or "?") .. " min restantes")
+        return true, info
+    end
+
+    local reasons = {
+        KEY_NOT_FOUND  = "Cle introuvable",
+        KEY_EXPIRED    = "Cle expiree — utilise /genkey",
+        HWID_MISMATCH  = "Cle liee a un autre appareil",
+        NO_HWID        = "Erreur HWID manquant",
+        NO_KEY         = "Aucune cle fournie",
+    }
+    return false, reasons[data.reason] or (data.reason or "Erreur inconnue")
+end
+
+-- ─── Helpers UI ──────────────────────────────────────────────
+local function corner(parent, radius)
+    local c = Instance.new("UICorner", parent)
+    c.CornerRadius = UDim.new(0, radius or 10)
+    return c
+end
+
+local function tween(obj, props, t)
+    TweenService:Create(obj, TweenInfo.new(t or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
+end
+
+local function animatedStroke(parent, thickness)
+    local s = Instance.new("UIStroke", parent)
+    s.Color = Color3.fromRGB(255, 255, 255)
+    s.Thickness = thickness or 1.5
+    s.Transparency = 0.1
+    local grad = Instance.new("UIGradient", s)
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
+        ColorSequenceKeypoint.new(1,   Color3.fromRGB(10,  10,  10)),
+    })
+    task.spawn(function()
+        local rotation = 0
+        RunService.Heartbeat:Connect(function(dt)
+            rotation = (rotation + dt * 45) % 360
+            grad.Rotation = rotation
+        end)
+    end)
+    return s
+end
+
+-- ─── PROMPT KEY (bloque jusqu'a validation) ──────────────────
+local function promptKey()
+    local hwid = getHWID()
+
+    local C = {
+        bg       = Color3.fromRGB(15,  15,  15),
+        sidebar  = Color3.fromRGB(20,  20,  20),
+        card     = Color3.fromRGB(30,  30,  30),
+        cardHov  = Color3.fromRGB(45,  45,  45),
+        input    = Color3.fromRGB(25,  25,  25),
+        divider  = Color3.fromRGB(40,  40,  40),
+        text     = Color3.fromRGB(240, 240, 240),
+        subtext  = Color3.fromRGB(130, 130, 130),
+        faint    = Color3.fromRGB(70,  70,  70),
+        white    = Color3.fromRGB(255, 255, 255),
+        discord  = Color3.fromRGB(88,  101, 242),
+        discordH = Color3.fromRGB(71,  82,  196),
+        green    = Color3.fromRGB(87,  242, 135),
+        red      = Color3.fromRGB(237, 66,  69),
+        yellow   = Color3.fromRGB(255, 200, 0),
+    }
+
+    if CoreGui:FindFirstChild("CometKeySystem") then
+        CoreGui:FindFirstChild("CometKeySystem"):Destroy()
+    end
+
+    local Gui = Instance.new("ScreenGui")
+    Gui.Name = "CometKeySystem"
+    Gui.ResetOnSpawn = false
+    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    Gui.Parent = CoreGui
+
+    local Overlay = Instance.new("Frame", Gui)
+    Overlay.Size = UDim2.new(1, 0, 1, 0)
+    Overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Overlay.BackgroundTransparency = 0.5
+    Overlay.BorderSizePixel = 0
+    Overlay.ZIndex = 1
+
+    local Win = Instance.new("Frame", Gui)
+    Win.Name = "KeyWindow"
+    Win.Size = UDim2.new(0, 460, 0, 310)
+    Win.AnchorPoint = Vector2.new(0.5, 0.5)
+    Win.Position = UDim2.new(0.5, 0, 0.5, 0)
+    Win.BackgroundColor3 = C.bg
+    Win.BorderSizePixel = 0
+    Win.Active = true
+    Win.Draggable = true
+    Win.ClipsDescendants = false
+    Win.ZIndex = 2
+    corner(Win, 14)
+    animatedStroke(Win, 1.5)
+
+    local Shadow = Instance.new("ImageLabel", Win)
+    Shadow.ZIndex = -1
+    Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    Shadow.BackgroundTransparency = 1
+    Shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
+    Shadow.Size = UDim2.new(1, 26, 1, 26)
+    Shadow.Image = "rbxassetid://4735431565"
+    Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    Shadow.ImageTransparency = 0.4
+    Shadow.ScaleType = Enum.ScaleType.Slice
+    Shadow.SliceCenter = Rect.new(16, 16, 84, 84)
+
+    -- ── TopBar ──────────────────────────────────────────────
+    local TopBar = Instance.new("Frame", Win)
+    TopBar.Size = UDim2.new(1, 0, 0, 46)
+    TopBar.BackgroundColor3 = C.sidebar
+    TopBar.BorderSizePixel = 0
+    TopBar.ZIndex = 3
+    corner(TopBar, 14)
+
+    local TopPatch = Instance.new("Frame", TopBar)
+    TopPatch.Size = UDim2.new(1, 0, 0, 14)
+    TopPatch.Position = UDim2.new(0, 0, 1, -14)
+    TopPatch.BackgroundColor3 = C.sidebar
+    TopPatch.BorderSizePixel = 0
+    TopPatch.ZIndex = 3
+
+    local Logo = Instance.new("ImageLabel", TopBar)
+    Logo.Size = UDim2.new(0, 28, 0, 28)
+    Logo.Position = UDim2.new(0, 12, 0.5, -14)
+    Logo.BackgroundTransparency = 1
+    Logo.Image = "rbxassetid://131711664935136"
+    Logo.ImageColor3 = C.white
+    Logo.ZIndex = 4
+
+    local TopTitle = Instance.new("TextLabel", TopBar)
+    TopTitle.Position = UDim2.new(0, 48, 0, 5)
+    TopTitle.Size = UDim2.new(0, 250, 0, 20)
+    TopTitle.BackgroundTransparency = 1
+    TopTitle.Text = "Comet Hub"
+    TopTitle.TextColor3 = C.white
+    TopTitle.Font = Enum.Font.GothamBold
+    TopTitle.TextSize = 15
+    TopTitle.TextXAlignment = Enum.TextXAlignment.Left
+    TopTitle.ZIndex = 4
+
+    local TopSub = Instance.new("TextLabel", TopBar)
+    TopSub.Position = UDim2.new(0, 48, 0, 26)
+    TopSub.Size = UDim2.new(0, 250, 0, 14)
+    TopSub.BackgroundTransparency = 1
+    TopSub.Text = "Key System — Verification requise"
+    TopSub.TextColor3 = C.subtext
+    TopSub.Font = Enum.Font.Gotham
+    TopSub.TextSize = 11
+    TopSub.TextXAlignment = Enum.TextXAlignment.Left
+    TopSub.ZIndex = 4
+
+    -- ── Body ────────────────────────────────────────────────
+    local Body = Instance.new("Frame", Win)
+    Body.Position = UDim2.new(0, 0, 0, 46)
+    Body.Size = UDim2.new(1, 0, 1, -46)
+    Body.BackgroundTransparency = 1
+    Body.BorderSizePixel = 0
+    Body.ZIndex = 2
+
+    local Pad = 18
+
+    local KeyLabel = Instance.new("TextLabel", Body)
+    KeyLabel.Position = UDim2.new(0, Pad, 0, 14)
+    KeyLabel.Size = UDim2.new(1, -Pad*2, 0, 16)
+    KeyLabel.BackgroundTransparency = 1
+    KeyLabel.Text = "CLE D'ACCES"
+    KeyLabel.TextColor3 = C.subtext
+    KeyLabel.Font = Enum.Font.GothamBold
+    KeyLabel.TextSize = 10
+    KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    KeyLabel.ZIndex = 3
+
+    local InputFrame = Instance.new("Frame", Body)
+    InputFrame.Position = UDim2.new(0, Pad, 0, 34)
+    InputFrame.Size = UDim2.new(1, -Pad*2, 0, 42)
+    InputFrame.BackgroundColor3 = C.input
+    InputFrame.BorderSizePixel = 0
+    InputFrame.ZIndex = 3
+    corner(InputFrame, 9)
+    local InputStroke = Instance.new("UIStroke", InputFrame)
+    InputStroke.Color = C.divider
+    InputStroke.Thickness = 1
+
+    local Input = Instance.new("TextBox", InputFrame)
+    Input.Size = UDim2.new(1, -16, 1, 0)
+    Input.Position = UDim2.new(0, 8, 0, 0)
+    Input.BackgroundTransparency = 1
+    Input.Text = ""
+    Input.PlaceholderText = "KS-XXXX-XXXX-XXXX"
+    Input.PlaceholderColor3 = C.faint
+    Input.TextColor3 = C.text
+    Input.Font = Enum.Font.Code
+    Input.TextSize = 15
+    Input.ClearTextOnFocus = false
+    Input.ZIndex = 4
+
+    Input.Focused:Connect(function()
+        tween(InputStroke, { Color = Color3.fromRGB(100, 100, 100) })
+    end)
+    Input.FocusLost:Connect(function()
+        tween(InputStroke, { Color = C.divider })
+    end)
+
+    local HwidLabel = Instance.new("TextLabel", Body)
+    HwidLabel.Position = UDim2.new(0, Pad, 0, 82)
+    HwidLabel.Size = UDim2.new(1, -Pad*2, 0, 14)
+    HwidLabel.BackgroundTransparency = 1
+    HwidLabel.Text = "HWID : " .. hwid:sub(1, 28) .. "..."
+    HwidLabel.TextColor3 = C.faint
+    HwidLabel.Font = Enum.Font.Gotham
+    HwidLabel.TextSize = 10
+    HwidLabel.TextXAlignment = Enum.TextXAlignment.Left
+    HwidLabel.ZIndex = 3
+
+    local Status = Instance.new("TextLabel", Body)
+    Status.Position = UDim2.new(0, Pad, 0, 100)
+    Status.Size = UDim2.new(1, -Pad*2, 0, 20)
+    Status.BackgroundTransparency = 1
+    Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
+    Status.TextColor3 = C.subtext
+    Status.Font = Enum.Font.GothamSemibold
+    Status.TextSize = 12
+    Status.TextXAlignment = Enum.TextXAlignment.Left
+    Status.ZIndex = 3
+
+    -- ── Bouton Valider ───────────────────────────────────────
+    local ValidBtn = Instance.new("TextButton", Body)
+    ValidBtn.Position = UDim2.new(0, Pad, 0, 128)
+    ValidBtn.Size = UDim2.new(1, -Pad*2, 0, 38)
+    ValidBtn.BackgroundColor3 = C.card
+    ValidBtn.Text = "   \u2713  Valider la cle"
+    ValidBtn.TextColor3 = C.text
+    ValidBtn.Font = Enum.Font.GothamBold
+    ValidBtn.TextSize = 14
+    ValidBtn.TextXAlignment = Enum.TextXAlignment.Left
+    ValidBtn.BorderSizePixel = 0
+    ValidBtn.ZIndex = 3
+    corner(ValidBtn, 9)
+    local ValidStroke = Instance.new("UIStroke", ValidBtn)
+    ValidStroke.Color = C.divider
+    ValidStroke.Thickness = 1
+
+    local ValidDot = Instance.new("Frame", ValidBtn)
+    ValidDot.Size = UDim2.new(0, 8, 0, 8)
+    ValidDot.Position = UDim2.new(1, -18, 0.5, -4)
+    ValidDot.BackgroundColor3 = C.faint
+    ValidDot.BorderSizePixel = 0
+    ValidDot.ZIndex = 4
+    corner(ValidDot, 8)
+
+    ValidBtn.MouseEnter:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.cardHov }) end)
+    ValidBtn.MouseLeave:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.card }) end)
+
+    -- ── Divider ──────────────────────────────────────────────
+    local Div = Instance.new("Frame", Body)
+    Div.Position = UDim2.new(0, Pad, 0, 178)
+    Div.Size = UDim2.new(1, -Pad*2, 0, 1)
+    Div.BackgroundColor3 = C.divider
+    Div.BorderSizePixel = 0
+    Div.ZIndex = 3
+
+    -- ── Bouton Discord ───────────────────────────────────────
+    local DiscordBtn = Instance.new("TextButton", Body)
+    DiscordBtn.Position = UDim2.new(0, Pad, 0, 188)
+    DiscordBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
+    DiscordBtn.BackgroundColor3 = C.discord
+    DiscordBtn.Text = "  \ud83c\udfae  Rejoindre Discord"
+    DiscordBtn.TextColor3 = C.white
+    DiscordBtn.Font = Enum.Font.GothamBold
+    DiscordBtn.TextSize = 12
+    DiscordBtn.TextXAlignment = Enum.TextXAlignment.Center
+    DiscordBtn.BorderSizePixel = 0
+    DiscordBtn.ZIndex = 3
+    corner(DiscordBtn, 9)
+
+    DiscordBtn.MouseEnter:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discordH }) end)
+    DiscordBtn.MouseLeave:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discord }) end)
+    DiscordBtn.MouseButton1Click:Connect(function()
+        tween(DiscordBtn, { BackgroundColor3 = Color3.fromRGB(55, 65, 160) }, 0.1)
+        task.delay(0.15, function() tween(DiscordBtn, { BackgroundColor3 = C.discord }, 0.1) end)
+        setclipboard(DISCORD_URL)
+        Status.Text = "\u2705 Lien copie ! Colle-le dans ton navigateur."
+        Status.TextColor3 = C.green
+        task.delay(3, function()
+            Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
+            Status.TextColor3 = C.subtext
+        end)
+    end)
+
+    -- ── Bouton YouTube Coming Soon ────────────────────────────
+    local YTBtn = Instance.new("TextButton", Body)
+    YTBtn.Position = UDim2.new(0.5, 4, 0, 188)
+    YTBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
+    YTBtn.BackgroundColor3 = C.card
+    YTBtn.Text = "  \u25b6  Tuto YouTube"
+    YTBtn.TextColor3 = C.subtext
+    YTBtn.Font = Enum.Font.GothamSemibold
+    YTBtn.TextSize = 12
+    YTBtn.TextXAlignment = Enum.TextXAlignment.Center
+    YTBtn.BorderSizePixel = 0
+    YTBtn.ZIndex = 3
+    corner(YTBtn, 9)
+    local YTStroke = Instance.new("UIStroke", YTBtn)
+    YTStroke.Color = C.divider
+    YTStroke.Thickness = 1
+
+    local CSBadge = Instance.new("Frame", YTBtn)
+    CSBadge.Size = UDim2.new(0, 76, 0, 16)
+    CSBadge.Position = UDim2.new(1, -80, 0, 4)
+    CSBadge.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    CSBadge.BorderSizePixel = 0
+    CSBadge.ZIndex = 5
+    corner(CSBadge, 4)
+    local CSLabel = Instance.new("TextLabel", CSBadge)
+    CSLabel.Size = UDim2.new(1, 0, 1, 0)
+    CSLabel.BackgroundTransparency = 1
+    CSLabel.Text = "BIENTOT"
+    CSLabel.TextColor3 = C.subtext
+    CSLabel.Font = Enum.Font.GothamBold
+    CSLabel.TextSize = 9
+    CSLabel.ZIndex = 6
+
+    YTBtn.MouseEnter:Connect(function() tween(YTBtn, { BackgroundColor3 = C.cardHov }) end)
+    YTBtn.MouseLeave:Connect(function() tween(YTBtn, { BackgroundColor3 = C.card }) end)
+    YTBtn.MouseButton1Click:Connect(function()
+        tween(YTBtn, { BackgroundColor3 = Color3.fromRGB(55, 55, 55) }, 0.1)
+        task.delay(0.15, function() tween(YTBtn, { BackgroundColor3 = C.card }, 0.1) end)
+        Status.Text = "\ud83c\udfa6 Tuto pas encore dispo — reviens bientot !"
+        Status.TextColor3 = C.yellow
+        task.delay(3, function()
+            Status.Text = "Entre ta cle — utilise /genkey sur le Discord"
+            Status.TextColor3 = C.subtext
+        end)
+    end)
+
+    -- ── Logique validation ───────────────────────────────────
+    local validated = false
+
+    local function doValidate()
+        local key = Input.Text:gsub("%s+", "")
+        if key == "" then
+            Status.Text = "\u274c Entre une cle avant de valider"
+            Status.TextColor3 = C.red
+            return
+        end
+
+        ValidBtn.Text = "   \u23f3  Verification en cours..."
+        ValidBtn.TextColor3 = C.subtext
+        tween(ValidDot, { BackgroundColor3 = C.yellow })
+        Status.Text = "Connexion au serveur..."
+        Status.TextColor3 = C.yellow
+
+        local valid, info = verifyKey(key, hwid)
+
+        if valid then
+            ValidBtn.Text = "   \u2713  Cle valide !"
+            ValidBtn.TextColor3 = C.green
+            tween(ValidBtn,  { BackgroundColor3 = Color3.fromRGB(25, 45, 30) })
+            tween(ValidDot,  { BackgroundColor3 = C.green })
+            tween(ValidStroke, { Color = C.green })
+            Status.Text = "\u2705 " .. info
+            Status.TextColor3 = C.green
+            task.wait(1.2)
+            tween(Win, { Position = UDim2.new(0.5, 0, 0.45, 0), BackgroundTransparency = 1 }, 0.35)
+            task.wait(0.35)
+            Gui:Destroy()
+            validated = true
+        else
+            ValidBtn.Text = "   \u2713  Valider la cle"
+            ValidBtn.TextColor3 = C.text
+            tween(ValidBtn,  { BackgroundColor3 = C.card })
+            tween(ValidDot,  { BackgroundColor3 = C.red })
+            tween(ValidStroke, { Color = C.red })
+            Status.Text = "\u274c " .. info
+            Status.TextColor3 = C.red
+            task.delay(2, function()
+                tween(ValidDot,   { BackgroundColor3 = C.faint })
+                tween(ValidStroke, { Color = C.divider })
+            end)
+        end
+    end
+
+    ValidBtn.MouseButton1Click:Connect(doValidate)
+    Input.FocusLost:Connect(function(enterPressed)
+        if enterPressed then doValidate() end
+    end)
+
+    -- Animation d'entree
+    Win.Position = UDim2.new(0.5, 0, 0.55, 0)
+    Win.BackgroundTransparency = 1
+    tween(Win, { Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 0 }, 0.4)
+
+    repeat task.wait(0.05) until validated
+end
+
+-- ─── POINT D'ENTREE ──────────────────────────────────────────
+promptKey()
+-- Ton script continue ici uniquement si la cle est valide ✓
