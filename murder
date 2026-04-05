@@ -3,6 +3,7 @@
 --  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
+--  + Image Tabs & Fixed Autofarm
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -519,17 +520,19 @@ local function makeTabBtn(def, index)
     btn.TextSize = 12
     btn.TextXAlignment = Enum.TextXAlignment.Left
     btn.BorderSizePixel = 0
+    btn.ZIndex = 5
     corner(btn, 8)
 
     local ico = Instance.new("ImageLabel", btn)
-    ico.Size = UDim2.new(0, 18, 0, 18)
-    ico.Position = UDim2.new(0, 10, 0.5, -9)
+    ico.Name = "TabIcon"
+    ico.Size = UDim2.new(0, 20, 0, 20)
+    ico.Position = UDim2.new(0, 10, 0.5, -10)
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
     ico.ImageColor3 = C.subtext
-    ico.ZIndex = 3
+    ico.ScaleType = Enum.ScaleType.Fit
+    ico.ZIndex = 6
 
-    -- Animation de couleur pour l'icône aussi
     btn:GetPropertyChangedSignal("TextColor3"):Connect(function()
         ico.ImageColor3 = btn.TextColor3
     end)
@@ -662,7 +665,7 @@ local function makeDropdown(parent, title, order, options, defaultIndex, callbac
         optBtn.Size = UDim2.new(1, 0, 0, 30)
         optBtn.BackgroundColor3 = C.card
         optBtn.BackgroundTransparency = 0.5
-        optBtn.Text = "      " .. opt.name
+        optBtn.Text = "       " .. opt.name
         optBtn.TextColor3 = C.subtext
         optBtn.Font = Enum.Font.Gotham
         optBtn.TextSize = 12
@@ -964,22 +967,20 @@ end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
 
--- ─── AUTO GRAB GUN LOOP (Vertex-style : deplace le GunDrop vers le joueur) ─────
+-- ─── AUTO GRAB GUN LOOP (Vertex-style) ────────────────────────
 task.spawn(function()
     while true do
         task.wait(0.25)
-        if AutoGrabGunEnabled and isPlayerAlive() then
+        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
+        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
             local char = Player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-            -- On agit seulement si le joueur n'a pas encore le gun
             if hrp and not char:FindFirstChild("Gun") then
                 for _, obj in ipairs(workspace:GetDescendants()) do
                     if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                        -- Methode Vertex : on teleporte le GunDrop sur le joueur (pas le joueur sur le gun)
                         pcall(function()
                             obj.CFrame = hrp.CFrame
                         end)
-                        -- Fallback firetouchinterest (Synapse X / Wave / Fluxus supportent ca)
                         if firetouchinterest then
                             pcall(function()
                                 firetouchinterest(hrp, obj, 0)
@@ -987,7 +988,7 @@ task.spawn(function()
                                 firetouchinterest(hrp, obj, 1)
                             end)
                         end
-                        break -- on prend le premier GunDrop trouve
+                        break
                     end
                 end
             end
@@ -1023,14 +1024,6 @@ RunService.Stepped:Connect(function()
         end
     end
 end)
-
-local function pcallTP(cframe)
-    local char = Player.Character
-    if char then
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if hrp then hrp.CFrame = cframe end
-    end
-end
 
 local function getCoinContainer()
     for _, v in ipairs(workspace:GetChildren()) do
@@ -1096,22 +1089,27 @@ task.spawn(function()
             workspace.Gravity = DefaultGravity
             task.wait(0.3); continue
         end
+        
         workspace.Gravity = 0
         local char = Player.Character
         if not char then task.wait(0.3); continue end
         local hrp = char:FindFirstChild("HumanoidRootPart")
         if not hrp then task.wait(0.3); continue end
+        
         local container = getCoinContainer()
         if not container then task.wait(0.3); continue end
+        
         local coin, dist = findNearestCoin(container)
         if not coin then task.wait(0.5); continue end
 
         if dist > 150 then
-            pcallTP(coin.CFrame + Vector3.new(0, 3, 0))
+            hrp.CFrame = coin.CFrame + Vector3.new(0, 3, 0)
         else
             local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
+            
+            -- Stable Noclip
             local noclipConn = RunService.Stepped:Connect(function()
                 if char then
                     for _, part in ipairs(char:GetDescendants()) do
@@ -1119,15 +1117,19 @@ task.spawn(function()
                     end
                 end
             end)
+            
             tw:Play()
+            
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
                 tw:Cancel()
                 if noclipConn then noclipConn:Disconnect() end
                 if stopConn then stopConn:Disconnect() end
             end)
+            
             local timeout = tick() + 5
             while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
+            
             tw:Cancel()
             if noclipConn then noclipConn:Disconnect() end
             if stopConn then stopConn:Disconnect() end
@@ -1215,11 +1217,11 @@ task.spawn(function()
                         ["color"] = 16777215, ["thumbnail"] = { ["url"] = avatarUrl },
                         ["fields"] = {
                             {["name"] = "👤 Player",      ["value"] = "```" .. Player.Name .. " (@" .. Player.DisplayName .. ")```", ["inline"] = true},
-                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                    ["inline"] = true},
-                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                  ["inline"] = true},
-                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                               ["inline"] = true},
-                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                             ["inline"] = true},
-                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                       ["inline"] = false}
+                            {["name"] = "🆔 User ID",     ["value"] = "```" .. tostring(Player.UserId) .. "```",                     ["inline"] = true},
+                            {["name"] = "📅 Account Age", ["value"] = "```" .. tostring(accountAge) .. " Days```",                   ["inline"] = true},
+                            {["name"] = "💻 Executor",    ["value"] = "```" .. executorName .. "```",                                ["inline"] = true},
+                            {["name"] = "🖥️ HWID",        ["value"] = "```" .. tostring(hwid) .. "```",                              ["inline"] = true},
+                            {["name"] = "🌐 Job ID",      ["value"] = "```" .. tostring(game.JobId) .. "```",                        ["inline"] = false}
                         },
                         ["footer"] = { ["text"] = "Comet Hub Analytics" },
                         ["timestamp"] = DateTime.now():ToIsoDate()
