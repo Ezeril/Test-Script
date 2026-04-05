@@ -3,7 +3,7 @@
 --  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
---  + Image Tabs (Fixed Size & Padding) & Stable Autofarm
+--  + Image Tabs & Fixed Autofarm
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -478,12 +478,11 @@ Content.BorderSizePixel = 0
 Content.ClipsDescendants = true
 
 local tabs = {}
--- ─── TAB DEFS WITH IMAGES ──────────────────────────────────
 local TAB_DEFS = {
-    { name = "Autofarm", icon = "rbxassetid://124802659470696" },
-    { name = "Visuals",  icon = "rbxassetid://107024936324988" },
-    { name = "Misc",     icon = "rbxassetid://113349909101907" },
-    { name = "Info",     icon = "rbxassetid://77422160474065"  },
+    { name = "Autofarm", icon = "rbxassetid://115667339718278" },
+    { name = "Visuals",  icon = "rbxassetid://77197956939533" },
+    { name = "Misc",     icon = "rbxassetid://139117339338967" },
+    { name = "Info",     icon = "rbxassetid://134469381681560"  },
 }
 
 local function makeTabPage(name)
@@ -508,7 +507,6 @@ local function makeTabPage(name)
     return page, list
 end
 
--- ─── CORRECTED makeTabBtn for Smaller Icons & Proper Alignment ───
 local function makeTabBtn(def, index)
     local btn = Instance.new("TextButton", Sidebar)
     btn.Name = def.name
@@ -516,8 +514,7 @@ local function makeTabBtn(def, index)
     btn.Size = UDim2.new(1, 0, 0, 38)
     btn.BackgroundColor3 = C.card
     btn.BackgroundTransparency = 1
-    -- CORRIGÉ : Utilise le padding au lieu d'espaces dans le texte.
-    btn.Text = def.name 
+    btn.Text = "             " .. def.name 
     btn.TextColor3 = C.subtext
     btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 12
@@ -525,16 +522,12 @@ local function makeTabBtn(def, index)
     btn.BorderSizePixel = 0
     btn.ZIndex = 5
     corner(btn, 8)
-    
-    -- CORRIGÉ : Padding gauche suffisant pour le texte (marge après icône).
-    applyPadding(btn, 0, 0, 30, 0) -- PaddingLeft = 30
 
     local ico = Instance.new("ImageLabel", btn)
     ico.Name = "TabIcon"
-    -- CORRIGÉ : Taille réduite à 16x16 (contre 20x20).
     ico.Size = UDim2.new(0, 16, 0, 16)
-    -- CORRIGÉ : Position ajustée pour le centrage vertical parfait avec la nouvelle taille.
-    ico.Position = UDim2.new(0, 10, 0.5, -8) -- X=10, Y_Offset=-8
+    -- On recentre l'icône par rapport à sa nouvelle taille (-8 au lieu de -10)
+    ico.Position = UDim2.new(0, 12, 0.5, -8)
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
     ico.ImageColor3 = C.subtext
@@ -1090,16 +1083,15 @@ RoundEndEvent.OnClientEvent:Connect(function()
     if PlayerChamsEnabled then refreshAllChams() end
 end)
 
--- ─── CORRECTED Stable Autofarm Loop with Robust Noclip ───
 task.spawn(function()
     while true do
-        task.wait(0.0001) -- low wait for check
+        task.wait(0.0001)
         if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() then
             workspace.Gravity = DefaultGravity
             task.wait(0.3); continue
         end
         
-        workspace.Gravity = 0 -- disable gravity
+        workspace.Gravity = 0
         local char = Player.Character
         if not char then task.wait(0.3); continue end
         local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1111,15 +1103,6 @@ task.spawn(function()
         local coin, dist = findNearestCoin(container)
         if not coin then task.wait(0.5); continue end
 
-        -- Stable Noclip logic throughout the move
-        local noclipConn = RunService.Stepped:Connect(function()
-            if char then
-                for _, part in ipairs(char:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
-                end
-            end
-        end)
-
         if dist > 150 then
             hrp.CFrame = coin.CFrame + Vector3.new(0, 3, 0)
         else
@@ -1127,11 +1110,31 @@ task.spawn(function()
             hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
             local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             
+            -- Stable Noclip
+            local noclipConn = RunService.Stepped:Connect(function()
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                    end
+                end
+            end)
+            
             tw:Play()
-            tw.Completed:Wait() -- Wait for move to finish
+            
+            local stopConn
+            stopConn = autofarmstopevent.Event:Connect(function()
+                tw:Cancel()
+                if noclipConn then noclipConn:Disconnect() end
+                if stopConn then stopConn:Disconnect() end
+            end)
+            
+            local timeout = tick() + 5
+            while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
+            
+            tw:Cancel()
+            if noclipConn then noclipConn:Disconnect() end
+            if stopConn then stopConn:Disconnect() end
         end
-        
-        noclipConn:Disconnect() -- Disconnect noclip after move
     end
 end)
 
