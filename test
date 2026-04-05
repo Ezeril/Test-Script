@@ -109,7 +109,7 @@ local function promptKey()
     Gui.Name = "CometKeySystem"
     Gui.ResetOnSpawn = false
     Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    Gui.Parent = CoreGui
+    Gui.Parent = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
 
     local Overlay = Instance.new("Frame", Gui)
     Overlay.Size = UDim2.new(1, 0, 1, 0)
