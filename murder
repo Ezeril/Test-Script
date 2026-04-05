@@ -1,5 +1,5 @@
 -- ============================================================
---  MM2 COMET HUB v3.4 - Silent Auto-Detect & Dropdown UI
+--  MM2 COMET HUB Beta - Silent Auto-Detect & Dropdown UI
 --  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
@@ -473,7 +473,7 @@ applyPadding(Sidebar, 12, 12, 8, 8)
 local SideVer = Instance.new("TextLabel", Sidebar)
 SideVer.Size = UDim2.new(1, 0, 0, 14)
 SideVer.BackgroundTransparency = 1
-SideVer.Text = "v3.4"
+SideVer.Text = "Beta"
 SideVer.TextColor3 = C.subtext
 SideVer.Font = Enum.Font.Gotham
 SideVer.TextSize = 10
@@ -992,7 +992,7 @@ local function infoCard(parent, order, key, value)
 end
 sectionLabel(infoPage, "SCRIPT", 0)
 infoCard(infoPage, 1, "Game", "Murder Mystery 2")
-infoCard(infoPage, 2, "Version", "v3.4")
+infoCard(infoPage, 2, "Version", "Beta")
 infoCard(infoPage, 3, "Hub", "Comet Hub Edition")
 sectionLabel(infoPage, "SUPPORT", 10)
 infoCard(infoPage, 11, "Shortcut", "F8 Key or Click Logo")
