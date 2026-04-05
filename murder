@@ -1586,20 +1586,29 @@ task.spawn(function()
     end
 end)
 
--- ─── AUTO GRAB GUN LOOP (Vertex-style) ────────────────────────
+-- ─── AUTO GRAB GUN LOOP (Corrected: Only for Innocents) ────────
 task.spawn(function()
     while true do
         task.wait(0.25)
-        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
-        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
+        
+        -- On récupère le rôle actuel (depuis le cache ou la variable locale)
+        local myRole = LocalRole or PlayerRoleCache[Player.Name]
+        
+        -- CONDITION : Activé + Vivant + Est Innocent + Pas de Gun déjà en main
+        if AutoGrabGunEnabled and isPlayerAlive() and myRole == "Innocent" then
             local char = Player.Character
             local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            
             if hrp and not char:FindFirstChild("Gun") then
+                -- Cherche le gun au sol
                 for _, obj in ipairs(workspace:GetDescendants()) do
                     if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                        -- Téléportation du Gun sur le joueur
                         pcall(function()
                             obj.CFrame = hrp.CFrame
                         end)
+                        
+                        -- Simulation du toucher pour le ramasser
                         if firetouchinterest then
                             pcall(function()
                                 firetouchinterest(hrp, obj, 0)
@@ -1607,7 +1616,7 @@ task.spawn(function()
                                 firetouchinterest(hrp, obj, 1)
                             end)
                         end
-                        break
+                        break -- On arrête de chercher une fois qu'on a trouvé
                     end
                 end
             end
