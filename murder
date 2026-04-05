@@ -1076,7 +1076,7 @@ RunService.Stepped:Connect(function()
 end)
 
 -- ============================================================
--- NOUVELLE LOGIQUE D'AUTOFARM : "Vertex-Style" (Ultra Smooth)
+-- NOUVELLE LOGIQUE D'AUTOFARM : Ultra Smooth (Avec Animations)
 -- ============================================================
 task.spawn(function()
     while true do
@@ -1089,8 +1089,7 @@ task.spawn(function()
         -- Si désactivé, sac plein, mort OU qu'on n'est pas dans la partie
         if not AutofarmStarted or BagFull or not isPlayerAlive() or not isPlayingRound() then
             workspace.Gravity = DefaultGravity
-            -- On rend le contrôle au joueur
-            if hum then hum.PlatformStand = false end
+            -- On nettoie la physique artificielle pour rendre le contrôle total
             if hrp and hrp:FindFirstChild("CometBV") then
                 hrp.CometBV:Destroy()
             end
@@ -1110,11 +1109,8 @@ task.spawn(function()
             continue
         end
 
-        -- MAGIE VERTEX : Fige la physique et prépare le vol fluide
-        workspace.Gravity = 0
-        hum.PlatformStand = true -- Gèle les animations et collisions des pieds
-        
-        -- Le BodyVelocity empêche le moindre micro-tremblement vers le bas
+        -- MAGIE : On annule la gravité avec un BodyVelocity au lieu de PlatformStand.
+        -- Le personnage flotte parfaitement, mais les animations continuent !
         local bv = hrp:FindFirstChild("CometBV")
         if not bv then
             bv = Instance.new("BodyVelocity")
@@ -1125,12 +1121,13 @@ task.spawn(function()
         end
 
         if dist > 150 then
+            -- Téléportation instantanée si on est beaucoup trop loin
             hrp.CFrame = coin.CFrame + Vector3.new(0, 3, 0)
             task.wait(0.1)
         else
-            -- Vise juste au dessus de la pièce
+            -- Déplacement fluide ("Smooth Tween")
             local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.2, coin.Position.Z)
-            local timeToReach = dist / 21 -- Vitesse parfaite (ni trop lent, ni kick anti-cheat)
+            local timeToReach = dist / 28 -- Vitesse équilibrée (ni trop lent, ni suspect)
             
             local tw = TweenService:Create(hrp, TweenInfo.new(timeToReach, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             
@@ -1142,11 +1139,12 @@ task.spawn(function()
             
             tw:Play()
             
+            -- On attend d'arriver sur la pièce ou on force l'aspiration si on est proche
             local timeout = tick() + timeToReach + 0.5
             while AutofarmStarted and not BagFull and isPlayerAlive() and isPlayingRound() and coin.Parent and coin:FindFirstChild("TouchInterest") and tick() < timeout do
                 task.wait(0.05)
                 
-                -- Aspiration "Vertex" : On grab la pièce artificiellement si on est assez proche
+                -- Aspiration "Vertex" : On simule la touche si on est à moins de 6 studs
                 if firetouchinterest and (hrp.Position - coin.Position).Magnitude < 6 then
                     pcall(function()
                         firetouchinterest(hrp, coin, 0)
