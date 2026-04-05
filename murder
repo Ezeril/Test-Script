@@ -1565,7 +1565,7 @@ task.spawn(function()
             task.wait(0.1)
         else
             local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
-            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
+            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 21, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
