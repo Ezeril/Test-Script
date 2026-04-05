@@ -514,7 +514,6 @@ local function makeTabBtn(def, index)
     btn.Size = UDim2.new(1, 0, 0, 38)
     btn.BackgroundColor3 = C.card
     btn.BackgroundTransparency = 1
-    -- On garde les espaces pour pousser le texte à droite
     btn.Text = "            " .. def.name 
     btn.TextColor3 = C.subtext
     btn.Font = Enum.Font.GothamSemibold
@@ -527,14 +526,12 @@ local function makeTabBtn(def, index)
     local ico = Instance.new("ImageLabel", btn)
     ico.Name = "TabIcon"
     ico.Size = UDim2.new(0, 14, 0, 14)
-    
-    -- LA CORRECTION EST ICI :
-    -- L'AnchorPoint permet de centrer l'image sur son propre milieu
     ico.AnchorPoint = Vector2.new(0, 0.5)
     
-    -- Le "0.5" centre parfaitement au milieu du bouton.
-    -- Le "1" à la fin descend l'icône de 1 pixel pour l'aligner pile avec les lettres.
-    ico.Position = UDim2.new(0, 12, 0.5, 1) 
+    -- C'EST ICI QUE ÇA SE RÈGLE :
+    -- Le "3" à la fin descend l'image de 3 pixels. 
+    -- Si c'est trop bas, mets 2. Si c'est trop haut, mets 4.
+    ico.Position = UDim2.new(0, 12, 0.5, 3) 
     
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
