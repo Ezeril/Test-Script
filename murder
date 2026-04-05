@@ -3,7 +3,7 @@
 --  + Détection automatique 100% invisible (Aucun indicateur UI)
 --  + Menu déroulant complet pour les Emotes
 --  + Comet Hub UI, Webhook & HWID Ban System
---  + Image Tabs & Fixed Autofarm
+--  + Image Tabs & Fixed Autofarm (Lobby Check & Mid-round)
 -- ============================================================
 
 if game.CoreGui:FindFirstChild("CometHub") then
@@ -167,13 +167,12 @@ local PlayEmoteEvent = game.ReplicatedStorage:WaitForChild("Remotes"):WaitForChi
 
 -- ÉTATS
 local AutofarmStarted    = false
-local AutofarmIN         = false
+local BagFull            = false
 local AntiAfkState       = false
 local ImproveFPSenabled  = false
 local ResetWhenFullBag   = false
 local CurrentCoinType    = "Searching..."
 local autofarmstopevent  = Instance.new("BindableEvent")
-local IsParticipating    = false
 
 local PlayerChamsEnabled = false
 local GunChamEnabled     = false
@@ -220,15 +219,26 @@ local function scanPayloadForRoles(t, depth)
     end
 end
 
+-- CORRECTION : Garder en cache UNIQUEMENT les joueurs actuellement dans la partie
 local function fetchAllRoles()
     local ok, data = pcall(function() return GetPlayerDataFn:InvokeServer() end)
     if not ok or type(data) ~= "table" then return end
+    
+    local newRoleCache = {}
+    local newDeadCache = {}
     for name, pdata in pairs(data) do
-        if type(pdata) == "table" and pdata.Role then
-            PlayerRoleCache[tostring(name)] = tostring(pdata.Role)
-            if pdata.Dead ~= nil then PlayerDeadCache[tostring(name)] = (pdata.Dead == true) end
+        if type(pdata) == "table" and type(pdata.Role) == "string" and ROLES[pdata.Role] then
+            newRoleCache[tostring(name)] = tostring(pdata.Role)
+            if pdata.Dead ~= nil then newDeadCache[tostring(name)] = (pdata.Dead == true) end
         end
     end
+    PlayerRoleCache = newRoleCache
+    PlayerDeadCache = newDeadCache
+end
+
+-- VRAIE VERIFICATION LOBBY/PARTIE :
+local function isPlayingRound()
+    return PlayerRoleCache[Player.Name] ~= nil and PlayerDeadCache[Player.Name] ~= true
 end
 
 local function isPlayerAlive()
@@ -242,7 +252,7 @@ local function onCharacterAdded(char)
     local hum = char:WaitForChild("Humanoid", 5)
     if not hum then return end
     hum.Died:Connect(function()
-        IsParticipating = false; AutofarmIN = false
+        BagFull = false
     end)
 end
 Player.CharacterAdded:Connect(onCharacterAdded)
@@ -514,7 +524,7 @@ local function makeTabBtn(def, index)
     btn.Size = UDim2.new(1, 0, 0, 38)
     btn.BackgroundColor3 = C.card
     btn.BackgroundTransparency = 1
-    btn.Text = "            " .. def.name 
+    btn.Text = "             " .. def.name 
     btn.TextColor3 = C.subtext
     btn.Font = Enum.Font.GothamSemibold
     btn.TextSize = 12
@@ -528,10 +538,7 @@ local function makeTabBtn(def, index)
     ico.Size = UDim2.new(0, 14, 0, 14)
     ico.AnchorPoint = Vector2.new(0, 0.5)
     
-    -- C'EST ICI QUE ÇA SE RÈGLE :
-    -- Le "3" à la fin descend l'image de 3 pixels. 
-    -- Si c'est trop bas, mets 2. Si c'est trop haut, mets 4.
-    ico.Position = UDim2.new(0, 12, 0.5, 0) 
+    ico.Position = UDim2.new(0, 12, 0.5, 4) 
     
     ico.BackgroundTransparency = 1
     ico.Image = def.icon
@@ -698,10 +705,9 @@ sectionLabel(autoPage, "MAIN AUTOFARM", 0)
 
 makeToggle(autoPage, "Start Autofarm", 1, function(_, state)
     AutofarmStarted = state
-    if AutofarmStarted then
-        AutofarmIN = isPlayerAlive() and IsParticipating
-    else
-        AutofarmIN = false; autofarmstopevent:Fire()
+    if not AutofarmStarted then
+        autofarmstopevent:Fire()
+        workspace.Gravity = DefaultGravity
     end
 end)
 
@@ -973,35 +979,6 @@ end
 for _, p in ipairs(Players:GetPlayers()) do bindPlayer(p) end
 Players.PlayerAdded:Connect(bindPlayer)
 
--- ─── AUTO GRAB GUN LOOP (Vertex-style) ────────────────────────
-task.spawn(function()
-    while true do
-        task.wait(0.25)
-        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
-        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
-            local char = Player.Character
-            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
-            if hrp and not char:FindFirstChild("Gun") then
-                for _, obj in ipairs(workspace:GetDescendants()) do
-                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
-                        pcall(function()
-                            obj.CFrame = hrp.CFrame
-                        end)
-                        if firetouchinterest then
-                            pcall(function()
-                                firetouchinterest(hrp, obj, 0)
-                                task.wait(0.05)
-                                firetouchinterest(hrp, obj, 1)
-                            end)
-                        end
-                        break
-                    end
-                end
-            end
-        end
-    end
-end)
-
 task.spawn(function()
     while true do
         task.wait(0.5)
@@ -1009,24 +986,13 @@ task.spawn(function()
     end
 end)
 
+-- ACTUALISATION FORCÉE DE TES RÔLES TOUTES LES 2 SECONDES
 task.spawn(function()
     while true do
         task.wait(2)
+        task.spawn(fetchAllRoles)
         if PlayerChamsEnabled then
-            task.spawn(fetchAllRoles)
             refreshAllChams()
-        end
-    end
-end)
-
-RunService.Stepped:Connect(function()
-    if AntiFlingEnabled then
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= Player and p.Character then
-                for _, part in ipairs(p.Character:GetDescendants()) do
-                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
-                end
-            end
         end
     end
 end)
@@ -1056,89 +1022,142 @@ local function findNearestCoin(container)
     return nearest, minDist
 end
 
+-- ============================================================
+-- NOUVELLE LOGIQUE D'AUTOFARM : Sans blocages + Lobby Check
+-- ============================================================
+
 CoinCollectedEvent.OnClientEvent:Connect(function(cointype, current, max)
-    if tonumber(current) == tonumber(max) then
-        AutofarmIN = false; IsParticipating = false
+    if tonumber(current) >= tonumber(max) then
+        BagFull = true
         if ResetWhenFullBag and Player.Character then
             local hum = Player.Character:FindFirstChildOfClass("Humanoid")
             if hum then hum.Health = 0 end
         end
-    else
-        if IsParticipating then AutofarmIN = true end
     end
 end)
 
 RoundStartEvent.OnClientEvent:Connect(function()
     task.wait(0.5)
-    if isPlayerAlive() then
-        IsParticipating = true
-        if AutofarmStarted then AutofarmIN = true end
-    else
-        IsParticipating = false; AutofarmIN = false
-    end
+    BagFull = false
     task.spawn(fetchAllRoles)
     task.delay(0.3, function() if PlayerChamsEnabled then refreshAllChams() end end)
     CurrentCoinType = "Searching..."
 end)
 
 RoundEndEvent.OnClientEvent:Connect(function()
-    IsParticipating = false; AutofarmIN = false
+    BagFull = false
     PlayerRoleCache = {}; PlayerDeadCache = {}; LocalRole = nil
     task.wait(0.5)
     if PlayerChamsEnabled then refreshAllChams() end
 end)
 
+-- Boucle combinée pour l'Anti-Fling ET le Noclip d'Autofarm
+RunService.Stepped:Connect(function()
+    if AntiFlingEnabled then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= Player and p.Character then
+                for _, part in ipairs(p.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
+                end
+            end
+        end
+    end
+
+    if AutofarmStarted and not BagFull and isPlayerAlive() and isPlayingRound() and getCoinContainer() then
+        local char = Player.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") and part.CanCollide then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+end)
+
 task.spawn(function()
     while true do
-        task.wait(0.0001)
-        if not AutofarmStarted or not AutofarmIN or not IsParticipating or not isPlayerAlive() then
+        task.wait(0.05)
+        
+        -- Si désactivé, sac plein, mort OU qu'on est pas dans la game (lobby)
+        if not AutofarmStarted or BagFull or not isPlayerAlive() or not isPlayingRound() then
             workspace.Gravity = DefaultGravity
-            task.wait(0.3); continue
+            task.wait(0.3)
+            continue
         end
         
-        workspace.Gravity = 0
-        local char = Player.Character
-        if not char then task.wait(0.3); continue end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        if not hrp then task.wait(0.3); continue end
-        
         local container = getCoinContainer()
-        if not container then task.wait(0.3); continue end
+        if not container then
+            workspace.Gravity = DefaultGravity
+            task.wait(0.3)
+            continue
+        end
         
         local coin, dist = findNearestCoin(container)
-        if not coin then task.wait(0.5); continue end
+        if not coin then
+            workspace.Gravity = DefaultGravity
+            task.wait(0.3)
+            continue
+        end
+
+        workspace.Gravity = 0
+        local char = Player.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hrp then continue end
+
+        hrp.AssemblyLinearVelocity = Vector3.zero
 
         if dist > 150 then
             hrp.CFrame = coin.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.1)
         else
             local targetPosition = Vector3.new(coin.Position.X, coin.Position.Y + 1.5, coin.Position.Z)
-            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 20, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
-            
-            -- Stable Noclip
-            local noclipConn = RunService.Stepped:Connect(function()
-                if char then
-                    for _, part in ipairs(char:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then part.CanCollide = false end
-                    end
-                end
-            end)
-            
-            tw:Play()
+            local tw = TweenService:Create(hrp, TweenInfo.new(dist / 25, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPosition)})
             
             local stopConn
             stopConn = autofarmstopevent.Event:Connect(function()
                 tw:Cancel()
-                if noclipConn then noclipConn:Disconnect() end
                 if stopConn then stopConn:Disconnect() end
             end)
             
-            local timeout = tick() + 5
-            while coin:FindFirstChild("TouchInterest") and tick() < timeout do task.wait() end
+            tw:Play()
+            
+            local timeout = tick() + (dist / 25) + 1
+            while AutofarmStarted and not BagFull and isPlayerAlive() and isPlayingRound() and coin.Parent and coin:FindFirstChild("TouchInterest") and tick() < timeout do
+                task.wait(0.05)
+            end
             
             tw:Cancel()
-            if noclipConn then noclipConn:Disconnect() end
             if stopConn then stopConn:Disconnect() end
+        end
+    end
+end)
+
+-- ─── AUTO GRAB GUN LOOP (Vertex-style) ────────────────────────
+task.spawn(function()
+    while true do
+        task.wait(0.25)
+        local isMurderer = (LocalRole == "Murderer") or (PlayerRoleCache[Player.Name] == "Murderer")
+        if AutoGrabGunEnabled and isPlayerAlive() and not isMurderer then
+            local char = Player.Character
+            local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp and not char:FindFirstChild("Gun") then
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj.Name == "GunDrop" and obj:IsA("BasePart") then
+                        pcall(function()
+                            obj.CFrame = hrp.CFrame
+                        end)
+                        if firetouchinterest then
+                            pcall(function()
+                                firetouchinterest(hrp, obj, 0)
+                                task.wait(0.05)
+                                firetouchinterest(hrp, obj, 1)
+                            end)
+                        end
+                        break
+                    end
+                end
+            end
         end
     end
 end)
@@ -1183,6 +1202,9 @@ UserInputService.InputBegan:Connect(function(input, gpe)
 end)
 
 switchTab("Autofarm")
+
+-- FORCE LE CHECK DES ROLES DÈS L'INJECTION POUR SAVOIR SI ON JOUE
+task.spawn(fetchAllRoles)
 
 -- ─── LOADING SCREEN ──────────────────────────────────────────
 local LoadFrame = Instance.new("Frame", ScreenGui)
