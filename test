@@ -1,484 +1,154 @@
 -- ============================================================
---  COMET HUB - KEY SYSTEM (MM2 HUB EDITION)
---  + Design unifié avec le menu principal
---  + Transition fluide vers l'écran de chargement
---  + Interface 100% en Anglais (Centrée, sans point)
+--  COMET HUB - DUMP ALL TO FILE (writefile)
+--  Ecrit le résultat dans workspace/comet_dump.txt
+--  Puis affiche une notif quand c'est fait
 -- ============================================================
 
-local API_URL     = "https://cometkeyapi.netlify.app/verify"
-local DISCORD_URL = "https://discord.gg/NkYSkdAkey"
+local RS = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
+local player = Players.LocalPlayer
+local output = {}
 
-local Players      = game:GetService("Players")
-local TweenService = game:GetService("TweenService")
-local RunService   = game:GetService("RunService")
-local HttpService  = game:GetService("HttpService")
-local CoreGui      = game:GetService("CoreGui")
-local Player       = Players.LocalPlayer
-
-local function getHWID()
-    if getmachineidentity then return tostring(getmachineidentity()) end
-    if gethwid            then return tostring(gethwid())            end
-    local ok, id = pcall(function()
-        return game:GetService("RbxAnalyticsService"):GetClientId()
-    end)
-    if ok and id and id ~= "" then return id end
-    return tostring(Player.UserId)
+local function add(line)
+    table.insert(output, tostring(line))
 end
 
-local function verifyKey(key, hwid)
-    local url = API_URL .. "?key=" .. key .. "&hwid=" .. HttpService:UrlEncode(hwid)
-    
-    local ok, result = pcall(function()
-        if type(request) == "function" then
-            return request({Url = url, Method = "GET"}).Body
-        elseif type(http_request) == "function" then
-            return http_request({Url = url, Method = "GET"}).Body
-        else
-            return HttpService:GetAsync(url, true)
-        end
-    end)
+add("=== COMET HUB FULL DUMP ===")
+add("Player: " .. player.Name .. " | DisplayName: " .. player.DisplayName)
+add("")
 
-    if not ok then return false, "Network Error (Request blocked)" end
-
-    local data
-    pcall(function() data = HttpService:JSONDecode(result) end)
-    
-    if not data then return false, "Invalid API response" end
-
-    if data.valid then
-        local info = data.bound
-            and ("Device bound · " .. (data.expiresIn or "?") .. " mins remaining")
-            or  ((data.expiresIn or "?") .. " mins remaining")
-        return true, info
+-- ============================================================
+-- 1. Structure complète OfflineBooths
+-- ============================================================
+add("--- [1] ReplicatedStorage.OfflineBooths structure ---")
+local ob = RS:FindFirstChild("OfflineBooths")
+if ob then
+    for _, child in ipairs(ob:GetDescendants()) do
+        add(child.ClassName .. " | " .. child:GetFullName())
     end
-
-    local reasons = {
-        KEY_NOT_FOUND  = "Key not found",
-        KEY_EXPIRED    = "Key expired — use /genkey",
-        HWID_MISMATCH  = "HWID mismatch",
-        NO_HWID        = "Missing HWID",
-        NO_KEY         = "No key provided",
-    }
-    return false, reasons[data.reason] or (data.reason or "Unknown Error")
+else
+    add("OfflineBooths NOT FOUND in ReplicatedStorage")
 end
+
+add("")
 
 -- ============================================================
---  FONCTIONS UI (CALQUÉES SUR LE MAIN HUB)
+-- 2. Attributes sur chaque Item dans OfflineBooths
 -- ============================================================
-local function corner(parent, radius)
-    local c = Instance.new("UICorner", parent)
-    c.CornerRadius = UDim.new(0, radius or 10)
-    return c
-end
-
-local function stroke(parent, color, thickness, transparency)
-    local s = Instance.new("UIStroke", parent)
-    s.Color = color or Color3.fromRGB(150, 150, 150)
-    s.Thickness = thickness or 1
-    s.Transparency = transparency or 0.55
-    return s
-end
-
-local function tween(obj, props, t)
-    TweenService:Create(obj, TweenInfo.new(t or 0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), props):Play()
-end
-
-local function animatedStroke(parent, thickness)
-    local s = Instance.new("UIStroke", parent)
-    s.Color = Color3.fromRGB(255, 255, 255)
-    s.Thickness = thickness or 1.5
-    s.Transparency = 0.1
-    local grad = Instance.new("UIGradient", s)
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0,   Color3.fromRGB(255, 255, 255)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 120, 120)),
-        ColorSequenceKeypoint.new(1,   Color3.fromRGB(10,  10,  10)),
-    })
-    task.spawn(function()
-        local rotation = 0
-        RunService.Heartbeat:Connect(function(dt)
-            rotation = (rotation + dt * 45) % 360
-            grad.Rotation = rotation
-        end)
-    end)
-    return s
-end
-
-local function promptKey()
-    local hwid = getHWID()
-
-    local C = {
-        bg       = Color3.fromRGB(15,  15,  15),
-        sidebar  = Color3.fromRGB(20,  20,  20),
-        card     = Color3.fromRGB(30,  30,  30),
-        cardHov  = Color3.fromRGB(45,  45,  45),
-        input    = Color3.fromRGB(25,  25,  25),
-        divider  = Color3.fromRGB(40,  40,  40),
-        text     = Color3.fromRGB(240, 240, 240),
-        subtext  = Color3.fromRGB(130, 130, 130),
-        faint    = Color3.fromRGB(70,  70,  70),
-        white    = Color3.fromRGB(255, 255, 255),
-        discord  = Color3.fromRGB(88,  101, 242),
-        discordH = Color3.fromRGB(71,  82,  196),
-        green    = Color3.fromRGB(87,  242, 135),
-        red      = Color3.fromRGB(237, 66,  69),
-        yellow   = Color3.fromRGB(255, 200, 0),
-    }
-
-    if CoreGui:FindFirstChild("CometKeySystem") then
-        CoreGui:FindFirstChild("CometKeySystem"):Destroy()
-    end
-
-    local Gui = Instance.new("ScreenGui")
-    Gui.Name = "CometKeySystem"
-    Gui.ResetOnSpawn = false
-    Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    Gui.Parent = CoreGui
-
-    local Win = Instance.new("Frame", Gui)
-    Win.Name = "KeyWindow"
-    Win.Size = UDim2.new(0, 460, 0, 310)
-    Win.AnchorPoint = Vector2.new(0.5, 0.5)
-    Win.Position = UDim2.new(0.5, 0, 0.5, 0)
-    Win.BackgroundColor3 = C.bg
-    Win.BorderSizePixel = 0
-    Win.Active = true
-    Win.Draggable = true
-    Win.ClipsDescendants = true
-    Win.ZIndex = 2
-    corner(Win, 14)
-    animatedStroke(Win, 1.5)
-
-    local Shadow = Instance.new("ImageLabel", Win)
-    Shadow.ZIndex = -1
-    Shadow.AnchorPoint = Vector2.new(0.5, 0.5)
-    Shadow.BackgroundTransparency = 1
-    Shadow.Position = UDim2.new(0.5, 0, 0.5, 3)
-    Shadow.Size = UDim2.new(1, 26, 1, 26)
-    Shadow.Image = "rbxassetid://4735431565"
-    Shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
-    Shadow.ImageTransparency = 0.4
-    Shadow.ScaleType = Enum.ScaleType.Slice
-    Shadow.SliceCenter = Rect.new(16, 16, 84, 84)
-
-    -- TopBar
-    local TopBar = Instance.new("Frame", Win)
-    TopBar.Size = UDim2.new(1, 0, 0, 46)
-    TopBar.BackgroundColor3 = C.sidebar
-    TopBar.BorderSizePixel = 0
-    TopBar.ZIndex = 3
-    corner(TopBar, 14)
-
-    local TopPatch = Instance.new("Frame", TopBar)
-    TopPatch.Size = UDim2.new(1, 0, 0, 14)
-    TopPatch.Position = UDim2.new(0, 0, 1, -14)
-    TopPatch.BackgroundColor3 = C.sidebar
-    TopPatch.BorderSizePixel = 0
-    TopPatch.ZIndex = 3
-
-    local Logo = Instance.new("ImageLabel", TopBar)
-    Logo.Size = UDim2.new(0, 28, 0, 28)
-    Logo.Position = UDim2.new(0, 12, 0.5, -14)
-    Logo.BackgroundTransparency = 1
-    Logo.Image = "rbxassetid://131711664935136"
-    Logo.ImageColor3 = C.white
-    Logo.ZIndex = 4
-
-    local TopTitle = Instance.new("TextLabel", TopBar)
-    TopTitle.Position = UDim2.new(0, 48, 0, 5)
-    TopTitle.Size = UDim2.new(0, 250, 0, 20)
-    TopTitle.BackgroundTransparency = 1
-    TopTitle.Text = "Comet Hub"
-    TopTitle.TextColor3 = C.white
-    TopTitle.Font = Enum.Font.GothamBold
-    TopTitle.TextSize = 15
-    TopTitle.TextXAlignment = Enum.TextXAlignment.Left
-    TopTitle.ZIndex = 4
-
-    local TopSub = Instance.new("TextLabel", TopBar)
-    TopSub.Position = UDim2.new(0, 48, 0, 26)
-    TopSub.Size = UDim2.new(0, 250, 0, 14)
-    TopSub.BackgroundTransparency = 1
-    TopSub.Text = "Key System — Verification Required"
-    TopSub.TextColor3 = C.subtext
-    TopSub.Font = Enum.Font.Gotham
-    TopSub.TextSize = 11
-    TopSub.TextXAlignment = Enum.TextXAlignment.Left
-    TopSub.ZIndex = 4
-
-    -- Bouton de fermeture
-    local CloseBtn = Instance.new("TextButton", TopBar)
-    CloseBtn.Size = UDim2.new(0, 28, 0, 28)
-    CloseBtn.Position = UDim2.new(1, -38, 0.5, -14)
-    CloseBtn.BackgroundColor3 = C.card
-    CloseBtn.Text = "X"
-    CloseBtn.TextColor3 = C.white
-    CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.TextSize = 13
-    CloseBtn.BorderSizePixel = 0
-    CloseBtn.ZIndex = 5
-    corner(CloseBtn, 7)
-    CloseBtn.MouseEnter:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.cardHov }) end)
-    CloseBtn.MouseLeave:Connect(function() tween(CloseBtn, { BackgroundColor3 = C.card }) end)
-    CloseBtn.MouseButton1Click:Connect(function() Gui:Destroy() end)
-
-    -- Body
-    local Body = Instance.new("Frame", Win)
-    Body.Position = UDim2.new(0, 0, 0, 46)
-    Body.Size = UDim2.new(1, 0, 1, -46)
-    Body.BackgroundTransparency = 1
-    Body.BorderSizePixel = 0
-    Body.ZIndex = 2
-
-    local Pad = 18
-
-    local KeyLabel = Instance.new("TextLabel", Body)
-    KeyLabel.Position = UDim2.new(0, Pad, 0, 14)
-    KeyLabel.Size = UDim2.new(1, -Pad*2, 0, 16)
-    KeyLabel.BackgroundTransparency = 1
-    KeyLabel.Text = "ACCESS KEY"
-    KeyLabel.TextColor3 = C.subtext
-    KeyLabel.Font = Enum.Font.GothamBold
-    KeyLabel.TextSize = 10
-    KeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    local InputFrame = Instance.new("Frame", Body)
-    InputFrame.Position = UDim2.new(0, Pad, 0, 34)
-    InputFrame.Size = UDim2.new(1, -Pad*2, 0, 42)
-    InputFrame.BackgroundColor3 = C.input
-    InputFrame.BorderSizePixel = 0
-    corner(InputFrame, 9)
-    local InputStroke = stroke(InputFrame, C.divider, 1, 0)
-
-    local Input = Instance.new("TextBox", InputFrame)
-    Input.Size = UDim2.new(1, -16, 1, 0)
-    Input.Position = UDim2.new(0, 8, 0, 0)
-    Input.BackgroundTransparency = 1
-    Input.Text = ""
-    Input.PlaceholderText = "KS-XXXX-XXXX-XXXX"
-    Input.PlaceholderColor3 = C.faint
-    Input.TextColor3 = C.text
-    Input.Font = Enum.Font.Code
-    Input.TextSize = 15
-    Input.ClearTextOnFocus = false
-
-    Input.Focused:Connect(function() tween(InputStroke, { Color = Color3.fromRGB(100, 100, 100) }) end)
-    Input.FocusLost:Connect(function() tween(InputStroke, { Color = C.divider }) end)
-
-    local HwidLabel = Instance.new("TextLabel", Body)
-    HwidLabel.Position = UDim2.new(0, Pad, 0, 82)
-    HwidLabel.Size = UDim2.new(1, -Pad*2, 0, 14)
-    HwidLabel.BackgroundTransparency = 1
-    HwidLabel.Text = "HWID : " .. hwid:sub(1, 28) .. "..."
-    HwidLabel.TextColor3 = C.faint
-    HwidLabel.Font = Enum.Font.Gotham
-    HwidLabel.TextSize = 10
-    HwidLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    local Status = Instance.new("TextLabel", Body)
-    Status.Position = UDim2.new(0, Pad, 0, 100)
-    Status.Size = UDim2.new(1, -Pad*2, 0, 20)
-    Status.BackgroundTransparency = 1
-    Status.Text = "Enter your key — use /genkey on Discord"
-    Status.TextColor3 = C.subtext
-    Status.Font = Enum.Font.GothamSemibold
-    Status.TextSize = 12
-    Status.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Bouton Valider
-    local ValidBtn = Instance.new("TextButton", Body)
-    ValidBtn.Position = UDim2.new(0, Pad, 0, 128)
-    ValidBtn.Size = UDim2.new(1, -Pad*2, 0, 38)
-    ValidBtn.BackgroundColor3 = C.card
-    ValidBtn.Text = "Validate Key"
-    ValidBtn.TextColor3 = C.text
-    ValidBtn.Font = Enum.Font.GothamBold
-    ValidBtn.TextSize = 14
-    ValidBtn.TextXAlignment = Enum.TextXAlignment.Center
-    ValidBtn.BorderSizePixel = 0
-    corner(ValidBtn, 9)
-    local ValidStroke = stroke(ValidBtn, C.divider, 1, 0)
-
-    ValidBtn.MouseEnter:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.cardHov }) end)
-    ValidBtn.MouseLeave:Connect(function() tween(ValidBtn, { BackgroundColor3 = C.card }) end)
-
-    -- Divider
-    local Div = Instance.new("Frame", Body)
-    Div.Position = UDim2.new(0, Pad, 0, 178)
-    Div.Size = UDim2.new(1, -Pad*2, 0, 1)
-    Div.BackgroundColor3 = C.divider
-    Div.BorderSizePixel = 0
-
-    -- Boutons du bas
-    local DiscordBtn = Instance.new("TextButton", Body)
-    DiscordBtn.Position = UDim2.new(0, Pad, 0, 188)
-    DiscordBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
-    DiscordBtn.BackgroundColor3 = C.discord
-    DiscordBtn.Text = "Join Discord"
-    DiscordBtn.TextColor3 = C.white
-    DiscordBtn.Font = Enum.Font.GothamBold
-    DiscordBtn.TextSize = 12
-    DiscordBtn.BorderSizePixel = 0
-    corner(DiscordBtn, 9)
-
-    DiscordBtn.MouseEnter:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discordH }) end)
-    DiscordBtn.MouseLeave:Connect(function() tween(DiscordBtn, { BackgroundColor3 = C.discord }) end)
-    DiscordBtn.MouseButton1Click:Connect(function()
-        setclipboard(DISCORD_URL)
-        Status.Text = "Link copied! Paste it in your browser."
-        Status.TextColor3 = C.green
-        task.delay(3, function()
-            Status.Text = "Enter your key — use /genkey on Discord"
-            Status.TextColor3 = C.subtext
-        end)
-    end)
-
-    local YTBtn = Instance.new("TextButton", Body)
-    YTBtn.Position = UDim2.new(0.5, 4, 0, 188)
-    YTBtn.Size = UDim2.new(0.5, -Pad - 4, 0, 36)
-    YTBtn.BackgroundColor3 = C.card
-    YTBtn.Text = "YouTube Tutorial"
-    YTBtn.TextColor3 = C.subtext
-    YTBtn.Font = Enum.Font.GothamSemibold
-    YTBtn.TextSize = 12
-    YTBtn.BorderSizePixel = 0
-    corner(YTBtn, 9)
-    stroke(YTBtn, C.divider, 1, 0)
-
-    local CSBadge = Instance.new("Frame", YTBtn)
-    CSBadge.Size = UDim2.new(0, 80, 0, 16)
-    CSBadge.Position = UDim2.new(1, -84, 0, 4)
-    CSBadge.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    CSBadge.BorderSizePixel = 0
-    corner(CSBadge, 4)
-    local CSLabel = Instance.new("TextLabel", CSBadge)
-    CSLabel.Size = UDim2.new(1, 0, 1, 0)
-    CSLabel.BackgroundTransparency = 1
-    CSLabel.Text = "COMING SOON"
-    CSLabel.TextColor3 = C.subtext
-    CSLabel.Font = Enum.Font.GothamBold
-    CSLabel.TextSize = 8
-
-    YTBtn.MouseEnter:Connect(function() tween(YTBtn, { BackgroundColor3 = C.cardHov }) end)
-    YTBtn.MouseLeave:Connect(function() tween(YTBtn, { BackgroundColor3 = C.card }) end)
-
-    local validated = false
-
-    local function doValidate()
-        local key = Input.Text:gsub("%s+", "")
-        if key == "" then
-            Status.Text = "Enter a key before validating"
-            Status.TextColor3 = C.red
-            return
+add("--- [2] Attributes on each Item ---")
+if ob then
+    for _, item in ipairs(ob:GetDescendants()) do
+        local attrs = item:GetAttributes()
+        local count = 0
+        for _ in pairs(attrs) do count = count + 1 end
+        if count > 0 then
+            local attrStr = ""
+            for k, v in pairs(attrs) do
+                attrStr = attrStr .. k .. "=" .. tostring(v) .. " "
+            end
+            add(item:GetFullName() .. " | ATTRS: " .. attrStr)
         end
+    end
+end
 
-        ValidBtn.Text = "Validating..."
-        ValidBtn.TextColor3 = C.subtext
-        Status.Text = "Connecting to server..."
-        Status.TextColor3 = C.yellow
+add("")
 
-        local valid, info = verifyKey(key, hwid)
+-- ============================================================
+-- 3. BoothUI owner texts (tous les booths)
+-- ============================================================
+add("--- [3] BoothUI all owner texts ---")
+local boothlocation = nil
+pcall(function()
+    boothlocation = player
+        :WaitForChild("PlayerGui", 5)
+        :WaitForChild("MapUIContainer", 5)
+        :WaitForChild("MapUI", 5)
+end)
 
-        if valid then
-            ValidBtn.Text = "Key Accepted!"
-            ValidBtn.TextColor3 = C.green
-            tween(ValidBtn,    { BackgroundColor3 = Color3.fromRGB(25, 45, 30) })
-            tween(ValidStroke, { Color = C.green })
-            Status.Text = "[OK] " .. info
-            Status.TextColor3 = C.green
-            
-            task.wait(1)
-            
-            -- TRANSITION FLUIDE VERS L'ÉCRAN DE CHARGEMENT
-            tween(TopBar, { BackgroundTransparency = 1 }, 0.3)
-            tween(Body, { BackgroundTransparency = 1 }, 0.3)
-            for _, v in pairs(Win:GetDescendants()) do
-                if v:IsA("TextLabel") then tween(v, { TextTransparency = 1 }, 0.3)
-                elseif v:IsA("TextBox") then tween(v, { TextTransparency = 1 }, 0.3)
-                elseif v:IsA("TextButton") then tween(v, { BackgroundTransparency = 1, TextTransparency = 1 }, 0.3)
-                elseif v:IsA("Frame") and v ~= Win then tween(v, { BackgroundTransparency = 1 }, 0.3)
-                elseif v:IsA("UIStroke") then tween(v, { Transparency = 1 }, 0.3)
-                elseif v:IsA("ImageLabel") and v ~= Shadow then tween(v, { ImageTransparency = 1 }, 0.3)
+if boothlocation then
+    local boothUI = boothlocation:FindFirstChild("BoothUI")
+    if boothUI then
+        for _, f in ipairs(boothUI:GetChildren()) do
+            if f:FindFirstChild("Details") then
+                local ownerLabel = f.Details:FindFirstChild("Owner")
+                local ownerText = ownerLabel and ownerLabel.Text or "NIL"
+                add("Booth: " .. f.Name .. " | Owner: '" .. ownerText .. "'")
+                -- aussi lister les attributes du booth UI frame
+                for k, v in pairs(f:GetAttributes()) do
+                    add("  ATTR: " .. k .. " = " .. tostring(v))
                 end
             end
-            
-            task.wait(0.3)
-            TopBar.Visible = false
-            Body.Visible = false
-            
-            -- Morph de la fenêtre
-            tween(Win, { Size = UDim2.new(0, 300, 0, 160) }, 0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-            task.wait(0.5)
-
-            -- Création des éléments de l'écran de chargement
-            local LoadLogo = Instance.new("ImageLabel", Win)
-            LoadLogo.Size = UDim2.new(0, 60, 0, 60); LoadLogo.Position = UDim2.new(0.5, 0, 0.35, 0); LoadLogo.AnchorPoint = Vector2.new(0.5, 0.5)
-            LoadLogo.BackgroundTransparency = 1; LoadLogo.Image = "rbxassetid://131711664935136"; LoadLogo.ImageColor3 = C.white
-            LoadLogo.ImageTransparency = 1
-            tween(LoadLogo, { ImageTransparency = 0 }, 0.3)
-
-            local LoadText = Instance.new("TextLabel", Win)
-            LoadText.Size = UDim2.new(1, 0, 0, 20); LoadText.Position = UDim2.new(0, 0, 0.65, 0)
-            LoadText.BackgroundTransparency = 1; LoadText.Text = "Initializing MM2 Autofarm..."; LoadText.TextColor3 = C.subtext
-            LoadText.Font = Enum.Font.GothamSemibold; LoadText.TextSize = 12
-            LoadText.TextTransparency = 1
-            tween(LoadText, { TextTransparency = 0 }, 0.3)
-
-            local BarBG = Instance.new("Frame", Win)
-            BarBG.Size = UDim2.new(0, 220, 0, 6); BarBG.Position = UDim2.new(0.5, 0, 0.85, 0); BarBG.AnchorPoint = Vector2.new(0.5, 0.5)
-            BarBG.BackgroundColor3 = C.card; BarBG.BorderSizePixel = 0; corner(BarBG, 4)
-            BarBG.BackgroundTransparency = 1
-            tween(BarBG, { BackgroundTransparency = 0 }, 0.3)
-
-            local BarFill = Instance.new("Frame", BarBG)
-            BarFill.Size = UDim2.new(0, 0, 1, 0); BarFill.BackgroundColor3 = C.white; BarFill.BorderSizePixel = 0; corner(BarFill, 4)
-
-            -- Animation de chargement
-            tween(BarFill, {Size = UDim2.new(0.35, 0, 1, 0)}, 0.8); task.wait(0.8)
-            LoadText.Text = "Loading MM2 modules..."
-            tween(BarFill, {Size = UDim2.new(0.75, 0, 1, 0)}, 1.2); task.wait(1.2)
-            LoadText.Text = "Bypassing anti-cheat..."
-            tween(BarFill, {Size = UDim2.new(1, 0, 1, 0)}, 0.6); task.wait(0.6)
-            LoadText.Text = "Welcome to Comet Hub!"; LoadText.TextColor3 = C.white; task.wait(0.6)
-
-            -- Fin du chargement
-            tween(Win, { Size = UDim2.new(0, 280, 0, 140), BackgroundTransparency = 1 }, 0.3)
-            tween(Shadow, { ImageTransparency = 1 }, 0.3)
-            tween(LoadLogo, { ImageTransparency = 1 }, 0.3)
-            tween(LoadText, { TextTransparency = 1 }, 0.3)
-            tween(BarBG, { BackgroundTransparency = 1 }, 0.3)
-            tween(BarFill, { BackgroundTransparency = 1 }, 0.3)
-            
-            task.wait(0.3)
-            Gui:Destroy()
-            validated = true
-        else
-            ValidBtn.Text = "Validate Key"
-            ValidBtn.TextColor3 = C.text
-            tween(ValidBtn,    { BackgroundColor3 = C.card })
-            tween(ValidStroke, { Color = C.red })
-            Status.Text = "[X] " .. info
-            Status.TextColor3 = C.red
-            task.delay(2, function()
-                tween(ValidStroke, { Color = C.divider })
-            end)
         end
+    else
+        add("BoothUI not found inside MapUI")
     end
-
-    ValidBtn.MouseButton1Click:Connect(doValidate)
-    Input.FocusLost:Connect(function(enterPressed)
-        if enterPressed then doValidate() end
-    end)
-
-    Win.Position = UDim2.new(0.5, 0, 0.55, 0)
-    Win.BackgroundTransparency = 1
-    tween(Win, { Position = UDim2.new(0.5, 0, 0.5, 0), BackgroundTransparency = 0 }, 0.4)
-
-    repeat task.wait(0.05) until validated
+else
+    add("boothlocation = NIL")
 end
 
-promptKey()
+add("")
 
 -- ============================================================
--- Ton script Comet Hub MM2 continue ICI. 
+-- 4. BoothInteractions workspace attributes
 -- ============================================================
+add("--- [4] BoothInteractions attributes ---")
+local bi = workspace:FindFirstChild("BoothInteractions")
+if bi then
+    for _, interact in ipairs(bi:GetChildren()) do
+        local attrStr = ""
+        for k, v in pairs(interact:GetAttributes()) do
+            attrStr = attrStr .. k .. "=" .. tostring(v) .. " "
+        end
+        add(interact.Name .. " | CLASS: " .. interact.ClassName .. " | ATTRS: " .. attrStr)
+    end
+else
+    add("BoothInteractions NOT FOUND in workspace")
+end
+
+add("")
+
+-- ============================================================
+-- 5. Remotes module keys
+-- ============================================================
+add("--- [5] Remotes module ---")
+for _, v in pairs(RS:GetChildren()) do
+    if v.Name:find("Remote") and v:IsA("ModuleScript") then
+        local ok, mod = pcall(require, v)
+        if ok and mod and type(mod) == "table" then
+            add("Module: " .. v.Name)
+            for key, val in pairs(mod) do
+                add("  key: " .. tostring(key) .. " -> " .. type(val))
+            end
+        end
+    end
+end
+
+add("")
+add("=== END OF DUMP ===")
+
+-- Ecrire dans un fichier
+local content = table.concat(output, "\n")
+local success = pcall(writefile, "comet_dump.txt", content)
+if success then
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Dump OK!",
+            Text = "Fichier comet_dump.txt créé! Envoie le fichier à Mathéo",
+            Duration = 10,
+        })
+    end)
+    print("DUMP WRITTEN TO: comet_dump.txt (" .. #output .. " lines)")
+else
+    -- Fallback: print tout dans la console
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "writefile indisponible",
+            Text = "Résultats dans F9 console",
+            Duration = 5,
+        })
+    end)
+    for _, line in ipairs(output) do
+        print(line)
+    end
+end
