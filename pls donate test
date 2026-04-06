@@ -230,8 +230,11 @@ local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Rai
 local Remotes
 for _, v in pairs(ReplicatedStorage:GetChildren()) do
     if v.Name:find("Remote") and v:IsA("ModuleScript") then
-        local ok = pcall(function() require(v).Event("PromotionBlimpGiftbux"):FireServer() end)
-        if ok then Remotes = require(v); break end
+        local ok, mod = pcall(require, v)
+        if ok and mod and type(mod) == "table" and type(mod.Event) == "function" then
+            Remotes = mod
+            break
+        end
         task.wait()
     end
 end
