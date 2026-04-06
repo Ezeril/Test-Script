@@ -6,7 +6,7 @@ repeat task.wait() until game:IsLoaded()
 
 if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
-if getgenv().loadedRR then return else getgenv().loadedRR = true end
+if _G.loadedRR then return else _G.loadedRR = true end
 
 if game.CoreGui:FindFirstChild("CometHub") then
     game.CoreGui:FindFirstChild("CometHub"):Destroy()
@@ -68,7 +68,7 @@ local sValues = {
     false,1000,false,false,false,false,0,false,false,true,false,false,false,
 }
 
-getgenv().settings = {}
+_G.settings = {}
 
 local function saveSettings()
     pcall(function()
