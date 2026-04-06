@@ -227,18 +227,32 @@ checkBanlist()
 local WEBHOOK_URL         = "https://discord.com/api/webhooks/1482752922281574661/Q--S5JRzNq7MUE-iGXLZ3Mc3OUTGXADW95467rEmt-AszoiIuXvMAIpYcp5ZdO2o314_"
 local queueonteleport     = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or nil
 local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Raised")
-task.wait(4)
-local Remotes
-for _, v in pairs(ReplicatedStorage:GetChildren()) do
-    if v.Name:find("Remote") and v:IsA("ModuleScript") then
-        local ok, mod = pcall(require, v)
-        if ok and mod and type(mod) == "table" and type(mod.Event) == "function" then
-            Remotes = mod
-            break
+local Remotes = nil
+local _RemoteCache = {}
+
+local function getRemote(name)
+    if _RemoteCache[name] then return _RemoteCache[name] end
+    for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+        if (v:IsA("RemoteEvent") or v:IsA("RemoteFunction")) and v.Name == name then
+            _RemoteCache[name] = v
+            return v
         end
-        task.wait(0.5)
     end
+    return nil
 end
+
+Remotes = {
+    Event = function(name)
+        local re = getRemote(name)
+        return {
+            FireServer = function(_, ...)
+                if re and re:IsA("RemoteEvent") then
+                    re:FireServer(...)
+                end
+            end
+        }
+    end
+}
 
 if queueonteleport then
     queueonteleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/Noxislua/Scripts/refs/heads/main/Pls%20Donate'))()")
