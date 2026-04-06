@@ -228,16 +228,19 @@ local WEBHOOK_URL         = "https://discord.com/api/webhooks/148275292228157466
 local queueonteleport     = (syn and syn.queue_on_teleport) or queue_on_teleport or (fluxus and fluxus.queue_on_teleport) or nil
 local newRaisedFormat     = player:WaitForChild("leaderstats"):WaitForChild("Raised")
 local Remotes
-for _, v in pairs(ReplicatedStorage:GetChildren()) do
-    if v.Name:find("Remote") and v:IsA("ModuleScript") then
-        local ok, mod = pcall(require, v)
-        if ok and mod and type(mod) == "table" and type(mod.Event) == "function" then
-            Remotes = mod
-            break
+local _remotesDeadline = tick() + 15
+repeat
+    for _, v in pairs(ReplicatedStorage:GetChildren()) do
+        if v.Name:find("Remote") and v:IsA("ModuleScript") then
+            local ok, mod = pcall(require, v)
+            if ok and mod and type(mod) == "table" and type(mod.Event) == "function" then
+                Remotes = mod
+                break
+            end
         end
-        task.wait()
     end
-end
+    if not Remotes then task.wait(1) end
+until Remotes or tick() > _remotesDeadline
 
 if queueonteleport then
     queueonteleport("loadstring(game:HttpGet('https://raw.githubusercontent.com/Noxislua/Scripts/refs/heads/main/Pls%20Donate'))()")
@@ -1546,9 +1549,7 @@ task.spawn(function()
 
     task.spawn(function()
         if not _boothlocation then return serverHop() end
-        -- FIX 4: start hop timer regardless of whether Remotes loaded
         hopSet()
-        if not Remotes then return end
 
         local function findUnclaimed()
             unclaimed = {}
@@ -1596,20 +1597,30 @@ task.spawn(function()
         if not unclaimed[2] then return serverHop() end
 
         local errCount = 0
-        local function boothclaim()
-            -- FIX 3: check both DisplayName and Name; guard against missing frame
-            Remotes.Event("ClaimBooth"):InvokeServer(unclaimed[2])
-            local ownerFrame = _boothlocation.BoothUI:FindFirstChild("BoothUI"..unclaimed[2])
-            if not ownerFrame then error() end
-            local function owned()
-                local t = ownerFrame.Details.Owner.Text
-                return t:find(player.DisplayName) or t:find(player.Name)
+local function boothclaim()
+    -- Chercher la ProximityPrompt "Claim" du booth ciblé
+    local claimPrompt = nil
+    for _, v in ipairs(workspace.BoothInteractions:GetChildren()) do
+        if v:GetAttribute("BoothSlot") == unclaimed[2] then
+            for _, c in ipairs(v:GetDescendants()) do
+                if c:IsA("ProximityPrompt") and c.Name == "Claim" then
+                    claimPrompt = c
+                    break
+                end
             end
-            if not owned() then
-                task.wait(1)
-                if not owned() then error() end
+            if not claimPrompt then
+                claimPrompt = v:FindFirstChildOfClass("ProximityPrompt")
             end
+            break
         end
+    end
+    if claimPrompt then
+        fireproximityprompt(claimPrompt)
+    elseif Remotes then
+        Remotes.Event("ClaimBooth"):InvokeServer(unclaimed[2])
+    else
+        error("no claim method available")
+    end
 
         while not pcall(boothclaim) do
             if errCount >= #unclaimed then return serverHop() end
@@ -1655,7 +1666,7 @@ task.spawn(function()
             player.Character.Humanoid.RootPart.CFrame = CFrame.new(boothPos.Position)
             player.Character:SetPrimaryPartCFrame(
                 CFrame.new(player.Character.HumanoidRootPart.Position, Vector3.new(40,14,101)))
-            task.wait(0.6)
+            task.wait(1.2)
             player.Character.Humanoid.WalkSpeed = 16
 
             local dc = getgenv().settings.danceChoice
